@@ -32,15 +32,14 @@ custom column types.
 You can now use any [SQLAlchemy core][sqlalchemy-core] queries ([official tutorial][sqlalchemy-core-tutorial]).
 
 ```python
-from databases import Database
+from morcilla import Database
 
 database = Database('postgresql://localhost/example')
-
 
 # Establish the connection pool
 await database.connect()
 
-# Execute
+#  Execute
 query = notes.insert()
 values = {"text": "example1", "completed": True}
 await database.execute(query=query, values=values)

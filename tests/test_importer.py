@@ -1,6 +1,6 @@
 import pytest
 
-from databases.importer import ImportFromStringError, import_from_string
+from morcilla.importer import ImportFromStringError, import_from_string
 
 
 def test_invalid_format():

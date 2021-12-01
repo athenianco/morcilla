@@ -35,19 +35,19 @@ def get_packages(package):
 
 
 setup(
-    name="databases",
-    version=get_version("databases"),
-    python_requires=">=3.6",
-    url="https://github.com/encode/databases",
+    name="morcilla",
+    version=get_version("morcilla"),
+    python_requires=">=3.8",
+    url="https://github.com/athenianco/morcilla",
     license="BSD",
-    description="Async database support for Python.",
+    description="Performant async database support for Python.",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     author="Tom Christie",
     author_email="tom@tomchristie.com",
-    packages=get_packages("databases"),
-    package_data={"databases": ["py.typed"]},
-    install_requires=["sqlalchemy>=1.4,<1.5", 'aiocontextvars;python_version<"3.7"'],
+    packages=get_packages("morcilla"),
+    package_data={"morcilla": ["py.typed"]},
+    install_requires=["sqlalchemy>=1.4,<1.5"],
     extras_require={
         "postgresql": ["asyncpg"],
         "mysql": ["aiomysql"],

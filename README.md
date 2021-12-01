@@ -103,6 +103,9 @@ very much breaking the existing code, and they should not be submitted upstream.
 
 Finally, we are going to add new backends such as Clickhouse in the future.
 
+## Why "morcilla"?
+
+Morcilla means blood sausage in Spanish. So the name reflects the ~bloody mess~ gory nature of the code.
 
 [sqlalchemy-core]: https://docs.sqlalchemy.org/en/latest/core/
 [sqlalchemy-core-tutorial]: https://docs.sqlalchemy.org/en/latest/core/tutorial.html
