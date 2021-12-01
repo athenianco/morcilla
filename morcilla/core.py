@@ -2,7 +2,6 @@ import asyncio
 import contextlib
 import functools
 import logging
-import sys
 import typing
 from types import TracebackType
 from urllib.parse import SplitResult, parse_qsl, unquote, urlsplit
@@ -10,13 +9,8 @@ from urllib.parse import SplitResult, parse_qsl, unquote, urlsplit
 from sqlalchemy import text
 from sqlalchemy.sql import ClauseElement
 
-from databases.importer import import_from_string
-from databases.interfaces import ConnectionBackend, DatabaseBackend, TransactionBackend
-
-if sys.version_info >= (3, 7):  # pragma: no cover
-    import contextvars as contextvars
-else:  # pragma: no cover
-    import aiocontextvars as contextvars
+from morcilla.importer import import_from_string
+from morcilla.interfaces import ConnectionBackend, DatabaseBackend, TransactionBackend
 
 try:  # pragma: no cover
     import click
@@ -37,52 +31,49 @@ except ImportError:  # pragma: no cover
     DISCONNECT_EXTRA = {}
 
 
-logger = logging.getLogger("databases")
+logger = logging.getLogger("morcilla")
 
 
 class Database:
     SUPPORTED_BACKENDS = {
-        "postgresql": "databases.backends.postgres:PostgresBackend",
-        "postgresql+aiopg": "databases.backends.aiopg:AiopgBackend",
-        "postgres": "databases.backends.postgres:PostgresBackend",
-        "mysql": "databases.backends.mysql:MySQLBackend",
-        "mysql+asyncmy": "databases.backends.asyncmy:AsyncMyBackend",
-        "sqlite": "databases.backends.sqlite:SQLiteBackend",
+        "postgresql": "morcilla.backends.asyncpg:PostgresBackend",
+        "postgresql+aiopg": "morcilla.backends.aiopg:AiopgBackend",
+        "mysql": "morcilla.backends.mysql:MySQLBackend",
+        "mysql+asyncmy": "morcilla.backends.asyncmy:AsyncMyBackend",
+        "sqlite": "morcilla.backends.sqlite:SQLiteBackend",
     }
 
     def __init__(
         self,
         url: typing.Union[str, "DatabaseURL"],
-        *,
-        force_rollback: bool = False,
         **options: typing.Any,
     ):
         self.url = DatabaseURL(url)
         self.options = options
-        self.is_connected = False
-
-        self._force_rollback = force_rollback
+        self._is_connected = False
 
         backend_str = self._get_backend()
         backend_cls = import_from_string(backend_str)
         assert issubclass(backend_cls, DatabaseBackend)
         self._backend = backend_cls(self.url, **self.options)
 
-        # Connections are stored as task-local state.
-        self._connection_context = contextvars.ContextVar(
-            "connection_context"
-        )  # type: contextvars.ContextVar
+    def __repr__(self) -> str:
+        """Support repr()."""
+        return "Database('%s', **%s)" % (self.url, self.options)
 
-        # When `force_rollback=True` is used, we use a single global
-        # connection, within a transaction that always rolls back.
-        self._global_connection = None  # type: typing.Optional[Connection]
-        self._global_transaction = None  # type: typing.Optional[Transaction]
+    def __str__(self) -> str:
+        """Support str()."""
+        return repr(self)
+
+    @property
+    def is_connected(self) -> bool:
+        return self._is_connected
 
     async def connect(self) -> None:
         """
         Establish the connection pool.
         """
-        if self.is_connected:
+        if self._is_connected:
             logger.debug("Already connected, skipping connection")
             return None
 
@@ -90,37 +81,15 @@ class Database:
         logger.info(
             "Connected to database %s", self.url.obscure_password, extra=CONNECT_EXTRA
         )
-        self.is_connected = True
-
-        if self._force_rollback:
-            assert self._global_connection is None
-            assert self._global_transaction is None
-
-            self._global_connection = Connection(self._backend)
-            self._global_transaction = self._global_connection.transaction(
-                force_rollback=True
-            )
-
-            await self._global_transaction.__aenter__()
+        self._is_connected = True
 
     async def disconnect(self) -> None:
         """
         Close all connections in the connection pool.
         """
-        if not self.is_connected:
+        if not self._is_connected:
             logger.debug("Already disconnected, skipping disconnection")
             return None
-
-        if self._force_rollback:
-            assert self._global_connection is not None
-            assert self._global_transaction is not None
-
-            await self._global_transaction.__aexit__()
-
-            self._global_transaction = None
-            self._global_connection = None
-        else:
-            self._connection_context = contextvars.ContextVar("connection_context")
 
         await self._backend.disconnect()
         logger.info(
@@ -128,7 +97,7 @@ class Database:
             self.url.obscure_password,
             extra=DISCONNECT_EXTRA,
         )
-        self.is_connected = False
+        self._is_connected = False
 
     async def __aenter__(self) -> "Database":
         await self.connect()
@@ -182,44 +151,8 @@ class Database:
             async for record in connection.iterate(query, values):
                 yield record
 
-    def _new_connection(self) -> "Connection":
-        connection = Connection(self._backend)
-        self._connection_context.set(connection)
-        return connection
-
     def connection(self) -> "Connection":
-        if self._global_connection is not None:
-            return self._global_connection
-
-        try:
-            return self._connection_context.get()
-        except LookupError:
-            return self._new_connection()
-
-    def transaction(
-        self, *, force_rollback: bool = False, **kwargs: typing.Any
-    ) -> "Transaction":
-        try:
-            connection = self._connection_context.get()
-            is_root = not connection._transaction_stack
-            if is_root:
-                newcontext = contextvars.copy_context()
-                get_conn = lambda: newcontext.run(self._new_connection)
-            else:
-                get_conn = self.connection
-        except LookupError:
-            get_conn = self.connection
-
-        return Transaction(get_conn, force_rollback=force_rollback, **kwargs)
-
-    @contextlib.contextmanager
-    def force_rollback(self) -> typing.Iterator[None]:
-        initial = self._force_rollback
-        self._force_rollback = True
-        try:
-            yield
-        finally:
-            self._force_rollback = initial
+        return Connection(self._backend)
 
     def _get_backend(self) -> str:
         return self.SUPPORTED_BACKENDS.get(
@@ -232,7 +165,7 @@ class Connection:
         self._backend = backend
 
         self._connection_lock = asyncio.Lock()
-        self._connection = self._backend.connection()
+        self._connection = self._backend.connection()  # type: ConnectionBackend
         self._connection_counter = 0
 
         self._transaction_lock = asyncio.Lock()
@@ -297,9 +230,12 @@ class Connection:
     async def execute_many(
         self, query: typing.Union[ClauseElement, str], values: list
     ) -> None:
-        queries = [self._build_query(query, values_set) for values_set in values]
-        async with self._query_lock:
-            await self._connection.execute_many(queries)
+        try:
+            return await self._connection.execute_many_native(query, values)
+        except NotImplementedError:
+            queries = [self._build_query(query, values_set) for values_set in values]
+            async with self._query_lock:
+                return await self._connection.execute_many(queries)
 
     async def iterate(
         self, query: typing.Union[ClauseElement, str], values: dict = None
@@ -313,14 +249,23 @@ class Connection:
     def transaction(
         self, *, force_rollback: bool = False, **kwargs: typing.Any
     ) -> "Transaction":
-        def connection_callable() -> Connection:
-            return self
+        return Transaction(self, force_rollback, **kwargs)
 
-        return Transaction(connection_callable, force_rollback, **kwargs)
+    @contextlib.asynccontextmanager
+    async def raw_connection(self) -> typing.AsyncIterator:
+        """
+        Return the underlying DB backend's connection.
 
-    @property
-    def raw_connection(self) -> typing.Any:
-        return self._connection.raw_connection
+        For example, it is `asyncpg.Connection` for asyncpg backend.
+
+        We acquire the connection lock while the raw connection is being used. Sample code:
+        ```
+        async with connection.raw_connection() as raw_conn:
+            print(await raw_conn.fetchval("SELECT true"))
+        ```
+        """
+        async with self._query_lock:
+            yield self._connection.raw_connection
 
     @staticmethod
     def _build_query(
@@ -339,11 +284,11 @@ class Connection:
 class Transaction:
     def __init__(
         self,
-        connection_callable: typing.Callable[[], Connection],
+        connection: Connection,
         force_rollback: bool,
         **kwargs: typing.Any,
     ) -> None:
-        self._connection_callable = connection_callable
+        self._connection = connection
         self._force_rollback = force_rollback
         self._extra_options = kwargs
 
@@ -387,15 +332,20 @@ class Transaction:
         return wrapper
 
     async def start(self) -> "Transaction":
-        self._connection = self._connection_callable()
-        self._transaction = self._connection._connection.transaction()
+        self._transaction = (
+            self._connection._connection.transaction()
+        )  # type: TransactionBackend
 
         async with self._connection._transaction_lock:
             is_root = not self._connection._transaction_stack
             await self._connection.__aenter__()
-            await self._transaction.start(
-                is_root=is_root, extra_options=self._extra_options
-            )
+            try:
+                await self._transaction.start(
+                    is_root=is_root, extra_options=self._extra_options
+                )
+            except Exception as e:
+                await self._connection.__aexit__()
+                raise e from None
             self._connection._transaction_stack.append(self)
         return self
 

@@ -2,7 +2,7 @@ from urllib.parse import quote
 
 import pytest
 
-from databases import DatabaseURL
+from morcilla import DatabaseURL
 
 
 def test_database_url_repr():

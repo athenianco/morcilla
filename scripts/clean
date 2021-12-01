@@ -6,9 +6,9 @@ fi
 if [ -d 'site' ] ; then
     rm -r site
 fi
-if [ -d 'databases.egg-info' ] ; then
-    rm -r databases.egg-info
+if [ -d 'morcilla.egg-info' ] ; then
+    rm -r morcilla.egg-info
 fi
 
-find databases -type f -name "*.py[co]" -delete
-find databases -type d -name __pycache__ -delete
+find morcilla -type f -name "*.py[co]" -delete
+find morcilla -type d -name __pycache__ -delete

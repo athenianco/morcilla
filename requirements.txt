@@ -4,7 +4,7 @@
 -e .
 
 # Async database drivers
-asyncmy;python_version>"3.6"
+asyncmy;python_version>="3.8"
 aiomysql;python_version<"3.10"
 aiopg
 aiosqlite
@@ -22,8 +22,6 @@ isort
 mypy
 pytest
 pytest-cov
-starlette
-requests
 
 # Documentation
 mkdocs

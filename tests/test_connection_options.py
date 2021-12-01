@@ -5,23 +5,24 @@ import sys
 
 import pytest
 
-from databases.backends.aiopg import AiopgBackend
-from databases.backends.postgres import PostgresBackend
-from databases.core import DatabaseURL
+from morcilla.backends.aiopg import AiopgBackend
+from morcilla.backends.asyncpg import PostgresBackend
+from morcilla.core import DatabaseURL
 from tests.test_databases import DATABASE_URLS, async_adapter
 
 if sys.version_info >= (3, 7):  # pragma: no cover
-    from databases.backends.asyncmy import AsyncMyBackend
+    from morcilla.backends.asyncmy import AsyncMyBackend
 
 
 if sys.version_info < (3, 10):  # pragma: no cover
-    from databases.backends.mysql import MySQLBackend
+    from morcilla.backends.mysql import MySQLBackend
 
 
 def test_postgres_pool_size():
     backend = PostgresBackend("postgres://localhost/database?min_size=1&max_size=20")
     kwargs = backend._get_connection_kwargs()
-    assert kwargs == {"min_size": 1, "max_size": 20}
+    for key, val in {"min_size": 1, "max_size": 20}.items():
+        assert kwargs[key] == val
 
 
 @async_adapter
@@ -37,25 +38,26 @@ async def test_postgres_pool_size_connect():
 def test_postgres_explicit_pool_size():
     backend = PostgresBackend("postgres://localhost/database", min_size=1, max_size=20)
     kwargs = backend._get_connection_kwargs()
-    assert kwargs == {"min_size": 1, "max_size": 20}
+    for key, val in {"min_size": 1, "max_size": 20}.items():
+        assert kwargs[key] == val
 
 
 def test_postgres_ssl():
     backend = PostgresBackend("postgres://localhost/database?ssl=true")
     kwargs = backend._get_connection_kwargs()
-    assert kwargs == {"ssl": True}
+    assert kwargs["ssl"]
 
 
 def test_postgres_explicit_ssl():
     backend = PostgresBackend("postgres://localhost/database", ssl=True)
     kwargs = backend._get_connection_kwargs()
-    assert kwargs == {"ssl": True}
+    assert kwargs["ssl"]
 
 
 def test_postgres_no_extra_options():
     backend = PostgresBackend("postgres://localhost/database")
     kwargs = backend._get_connection_kwargs()
-    assert kwargs == {}
+    assert kwargs.keys() == {"init", "statement_cache_size"}
 
 
 def test_postgres_password_as_callable():
@@ -66,8 +68,7 @@ def test_postgres_password_as_callable():
         "postgres://:password@localhost/database", password=gen_password
     )
     kwargs = backend._get_connection_kwargs()
-    assert kwargs == {"password": gen_password}
-    assert kwargs["password"]() == "Foo"
+    assert kwargs["password"] == gen_password
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 10), reason="requires python3.9 or lower")

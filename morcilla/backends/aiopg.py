@@ -13,10 +13,10 @@ from sqlalchemy.engine.row import Row
 from sqlalchemy.sql import ClauseElement
 from sqlalchemy.sql.ddl import DDLElement
 
-from databases.core import DatabaseURL
-from databases.interfaces import ConnectionBackend, DatabaseBackend, TransactionBackend
+from morcilla.core import DatabaseURL
+from morcilla.interfaces import ConnectionBackend, DatabaseBackend, TransactionBackend
 
-logger = logging.getLogger("databases")
+logger = logging.getLogger("morcilla.backends.aiopg")
 
 
 class AiopgBackend(DatabaseBackend):

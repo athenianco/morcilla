@@ -7,7 +7,7 @@ fi
 
 set -x
 
-${PREFIX}autoflake --in-place --recursive databases tests
-${PREFIX}isort --project=databases databases tests
-${PREFIX}black databases tests
-${PREFIX}mypy databases
+${PREFIX}autoflake --in-place --recursive morcilla tests
+${PREFIX}isort --project=morcilla morcilla tests
+${PREFIX}black morcilla tests
+${PREFIX}mypy morcilla
