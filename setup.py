@@ -47,7 +47,7 @@ setup(
     author_email="tom@tomchristie.com",
     packages=get_packages("morcilla"),
     package_data={"morcilla": ["py.typed"]},
-    install_requires=["sqlalchemy>=1.4,<1.5"],
+    install_requires=["sqlalchemy>=1.3,<1.5"],
     extras_require={
         "postgresql": ["asyncpg"],
         "mysql": ["aiomysql"],
