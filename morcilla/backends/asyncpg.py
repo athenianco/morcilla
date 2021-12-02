@@ -269,7 +269,7 @@ class PostgresConnection(ConnectionBackend):
             for key in removed:
                 del processors[key]
             args = []
-            if values:
+            if values is not None:
                 param_mapping = {key: i for i, (key, _) in enumerate(compiled_params)}
                 for dikt in values:
                     series = [None] * len(compiled_params)
