@@ -231,6 +231,8 @@ class Connection:
     async def execute_many(
         self, query: typing.Union[ClauseElement, str], values: list
     ) -> None:
+        if not values:
+            return
         try:
             return await self._connection.execute_many_native(query, values)
         except NotImplementedError:
