@@ -69,19 +69,20 @@ class Database:
     def is_connected(self) -> bool:
         return self._is_connected
 
-    async def connect(self) -> None:
+    async def connect(self) -> "Database":
         """
         Establish the connection pool.
         """
         if self._is_connected:
             logger.debug("Already connected, skipping connection")
-            return None
+            return self
 
         await self._backend.connect()
         logger.info(
             "Connected to database %s", self.url.obscure_password, extra=CONNECT_EXTRA
         )
         self._is_connected = True
+        return self
 
     async def disconnect(self) -> None:
         """

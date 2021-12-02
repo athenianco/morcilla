@@ -29,22 +29,9 @@ class SQLiteBackend(DatabaseBackend):
 
     async def connect(self) -> None:
         pass
-        # assert self._pool is None, "DatabaseBackend is already running"
-        # self._pool = await aiomysql.create_pool(
-        #     host=self._database_url.hostname,
-        #     port=self._database_url.port or 3306,
-        #     user=self._database_url.username or getpass.getuser(),
-        #     password=self._database_url.password,
-        #     db=self._database_url.database,
-        #     autocommit=True,
-        # )
 
     async def disconnect(self) -> None:
-        pass
-        # assert self._pool is not None, "DatabaseBackend is not running"
-        # self._pool.close()
-        # await self._pool.wait_closed()
-        # self._pool = None
+        await self._pool.close()
 
     def connection(self) -> "SQLiteConnection":
         return SQLiteConnection(self._pool, self._dialect)
@@ -54,16 +41,26 @@ class SQLitePool:
     def __init__(self, url: DatabaseURL, **options: typing.Any) -> None:
         self._url = url
         self._options = options
+        self._global_connection = None  # type: typing.Optional[aiosqlite.Connection]
 
     async def acquire(self) -> aiosqlite.Connection:
-        connection = aiosqlite.connect(
-            database=self._url.database, isolation_level=None, **self._options
-        )
-        await connection.__aenter__()
+        if (connection := self._global_connection) is None:
+            connection = aiosqlite.connect(
+                database=self._url.database, isolation_level=None, **self._options
+            )
+            await connection.__aenter__()
+        if not self._url.database:
+            self._global_connection = connection
         return connection
 
     async def release(self, connection: aiosqlite.Connection) -> None:
+        if not self._url.database:
+            return
         await connection.__aexit__(None, None, None)
+
+    async def close(self) -> None:
+        if not self._url.database and self._global_connection is not None:
+            await self._global_connection.__aexit__(None, None, None)
 
 
 class CompilationContext:
