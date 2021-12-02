@@ -5,7 +5,7 @@ import typing
 import weakref
 
 import asyncpg
-from sqlalchemy import text
+from sqlalchemy import __version__ as sqlalchemy_version, text
 from sqlalchemy.dialects.postgresql import hstore, pypostgresql
 from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.sql import ClauseElement
@@ -242,9 +242,11 @@ class PostgresConnection(ConnectionBackend):
     ) -> typing.Tuple[str, typing.List[list]]:
         if isinstance(query, str):
             query = text(query)
-        compiled = query.compile(
-            dialect=self._dialect, compile_kwargs={"render_postcompile": True}
-        )
+        if sqlalchemy_version.startswith("1.3"):
+            compile_kwargs = {}
+        else:
+            compile_kwargs = {"render_postcompile": True}
+        compiled = query.compile(dialect=self._dialect, compile_kwargs=compile_kwargs)
         if not isinstance(query, DDLElement):
             if values:
                 required_keys = values[0].keys()
