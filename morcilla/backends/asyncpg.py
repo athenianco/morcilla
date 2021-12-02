@@ -246,7 +246,7 @@ class PostgresConnection(ConnectionBackend):
             dialect=self._dialect, compile_kwargs={"render_postcompile": True}
         )
         if not isinstance(query, DDLElement):
-            if values is not None:
+            if values:
                 required_keys = values[0].keys()
             else:
                 required_keys = compiled.params.keys()
@@ -269,7 +269,7 @@ class PostgresConnection(ConnectionBackend):
             for key in removed:
                 del processors[key]
             args = []
-            if values is not None:
+            if values:
                 param_mapping = {key: i for i, (key, _) in enumerate(compiled_params)}
                 for dikt in values:
                     series = [None] * len(compiled_params)
