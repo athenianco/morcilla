@@ -153,6 +153,13 @@ class SQLiteConnection(ConnectionBackend):
 
     async def execute(self, query: ClauseElement) -> typing.Any:
         assert self._connection is not None, "Connection is not acquired"
+        if not self._connection.in_transaction:
+            async with self._transaction_lock:
+                return await self._execute(query)
+        return await self._execute(query)
+
+    async def _execute(self, query: ClauseElement) -> typing.Any:
+        assert self._connection is not None, "Connection is not acquired"
         query_str, args, context = self._compile(query)
         async with self._connection.cursor() as cursor:
             await cursor.execute(query_str, args)
