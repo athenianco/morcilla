@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import typing
 import uuid
@@ -37,6 +38,7 @@ class SQLiteBackend(DatabaseBackend):
         # aiosqlite does not support decimals
         self._dialect.supports_native_decimal = False
         self._pool = SQLitePool(self._database_url, **self._options)
+        self._transaction_lock = asyncio.Lock()
 
     async def connect(self) -> None:
         pass
@@ -45,7 +47,7 @@ class SQLiteBackend(DatabaseBackend):
         await self._pool.close()
 
     def connection(self) -> "SQLiteConnection":
-        return SQLiteConnection(self._pool, self._dialect)
+        return SQLiteConnection(self._pool, self._dialect, self._transaction_lock)
 
 
 class SQLitePool:
@@ -80,10 +82,13 @@ class CompilationContext:
 
 
 class SQLiteConnection(ConnectionBackend):
-    def __init__(self, pool: SQLitePool, dialect: Dialect):
+    def __init__(
+        self, pool: SQLitePool, dialect: Dialect, transaction_lock: asyncio.Lock
+    ):
         self._pool = pool
         self._dialect = dialect
         self._connection = None  # type: typing.Optional[aiosqlite.Connection]
+        self._transaction_lock = transaction_lock
 
     async def acquire(self) -> None:
         assert self._connection is None, "Connection is already acquired"
@@ -237,6 +242,7 @@ class SQLiteTransaction(TransactionBackend):
     def __init__(self, connection: SQLiteConnection):
         self._connection = connection
         self._is_root = False
+        self._locked = False
         self._savepoint_name = ""
 
     async def start(
@@ -245,6 +251,9 @@ class SQLiteTransaction(TransactionBackend):
         assert self._connection._connection is not None, "Connection is not acquired"
         self._is_root = is_root
         if self._is_root:
+            assert not self._locked
+            await self._connection._transaction_lock.acquire()
+            self._locked = True
             async with self._connection._connection.execute("BEGIN") as cursor:
                 await cursor.close()
         else:
@@ -258,8 +267,11 @@ class SQLiteTransaction(TransactionBackend):
     async def commit(self) -> None:
         assert self._connection._connection is not None, "Connection is not acquired"
         if self._is_root:
+            assert self._locked
             async with self._connection._connection.execute("COMMIT") as cursor:
                 await cursor.close()
+            self._locked = False
+            self._connection._transaction_lock.release()
         else:
             async with self._connection._connection.execute(
                 f"RELEASE SAVEPOINT {self._savepoint_name}"
@@ -269,8 +281,11 @@ class SQLiteTransaction(TransactionBackend):
     async def rollback(self) -> None:
         assert self._connection._connection is not None, "Connection is not acquired"
         if self._is_root:
+            assert self._locked
             async with self._connection._connection.execute("ROLLBACK") as cursor:
                 await cursor.close()
+            self._locked = False
+            self._connection._transaction_lock.release()
         else:
             async with self._connection._connection.execute(
                 f"ROLLBACK TO SAVEPOINT {self._savepoint_name}"
