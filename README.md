@@ -15,7 +15,7 @@ The project is a hard fork of [encode/databases](https://github.com/encode/datab
 It allows you to make queries using the powerful [SQLAlchemy Core][sqlalchemy-core]
 expression language, and provides support for PostgreSQL, MySQL, and SQLite.
 
-Databases is suitable for integrating against any async Web framework.
+Morcilla is suitable for integrating against any async Web framework.
 
 **Requirements**: Python 3.8+
 
