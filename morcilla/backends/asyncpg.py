@@ -248,15 +248,21 @@ class PostgresConnection(ConnectionBackend):
             compile_kwargs = {"render_postcompile": True}
         compiled = query.compile(dialect=self._dialect, compile_kwargs=compile_kwargs)
         if not isinstance(query, DDLElement):
+            compiled_params = (
+                compiled.params
+            )  # sqla 1.4 computes them on each property access
             if values:
                 required_keys = values[0].keys()
             else:
-                required_keys = compiled.params.keys()
-            compiled_params = sorted((k, compiled.params[k]) for k in required_keys)
+                required_keys = compiled_params.keys()
+            ordered_compiled_params = sorted(
+                (k, compiled_params[k]) for k in required_keys
+            )
             sql_mapping = {
-                key: "$" + str(i) for i, (key, _) in enumerate(compiled_params, start=1)
+                key: "$" + str(i)
+                for i, (key, _) in enumerate(ordered_compiled_params, start=1)
             }
-            for key in compiled.params.keys() - required_keys:
+            for key in compiled_params.keys() - required_keys:
                 sql_mapping[key] = "DEFAULT"
             compiled_query = compiled.string % sql_mapping
 
@@ -272,9 +278,11 @@ class PostgresConnection(ConnectionBackend):
                 del processors[key]
             args = []
             if values is not None:
-                param_mapping = {key: i for i, (key, _) in enumerate(compiled_params)}
+                param_mapping = {
+                    key: i for i, (key, _) in enumerate(ordered_compiled_params)
+                }
                 for dikt in values:
-                    series = [None] * len(compiled_params)
+                    series = [None] * len(ordered_compiled_params)
                     args.append(series)
                     for key, val in dikt.items():
                         try:
@@ -283,7 +291,7 @@ class PostgresConnection(ConnectionBackend):
                             pass
                         series[param_mapping[key]] = val
             else:
-                for key, val in compiled_params:
+                for key, val in ordered_compiled_params:
                     try:
                         val = processors[key](val)
                     except KeyError:
