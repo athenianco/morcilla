@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import typing
 import uuid
 
@@ -26,6 +27,10 @@ from morcilla.core import LOG_EXTRA, DatabaseURL
 from morcilla.interfaces import ConnectionBackend, DatabaseBackend, TransactionBackend
 
 logger = logging.getLogger("morcilla.backends.sqlite")
+
+
+def _regexp(a: str, b: str) -> bool:
+    return re.search(a, b) is not None
 
 
 class SQLiteBackend(DatabaseBackend):
@@ -62,6 +67,7 @@ class SQLitePool:
                 database=self._url.database, isolation_level=None, **self._options
             )
             await connection.__aenter__()
+            await connection.create_function("regexp", 2, _regexp)
         if not self._url.database:
             self._global_connection = connection
         return connection
