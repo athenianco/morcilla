@@ -13,7 +13,12 @@ from sqlalchemy.sql import ClauseElement
 from sqlalchemy.sql.ddl import DDLElement
 
 from morcilla.core import LOG_EXTRA, DatabaseURL
-from morcilla.interfaces import ConnectionBackend, DatabaseBackend, TransactionBackend
+from morcilla.interfaces import (
+    ConnectionBackend,
+    DatabaseBackend,
+    Record,
+    TransactionBackend,
+)
 
 logger = logging.getLogger("morcilla.backends.sqlite")
 
@@ -86,10 +91,12 @@ class _RowSA20Compat(Row):
     backend so this compatibilty allows a dual aiosqlite/asyncpg code base.
 
     """
+
     def __getitem__(self, key: typing.Any) -> typing.Any:
         if isinstance(key, str):
             return getattr(self, key)
         return super().__getitem__(key)
+
 
 class SQLiteConnection(ConnectionBackend):
     def __init__(
@@ -109,7 +116,7 @@ class SQLiteConnection(ConnectionBackend):
         await self._pool.release(self._connection)
         self._connection = None
 
-    async def fetch_all(self, query: ClauseElement) -> typing.List[typing.Sequence]:
+    async def fetch_all(self, query: ClauseElement) -> typing.List[Record]:
         assert self._connection is not None, "Connection is not acquired"
         query_str, args, context = self._compile(query)
 
@@ -127,7 +134,7 @@ class SQLiteConnection(ConnectionBackend):
                 for row in rows
             ]
 
-    async def fetch_one(self, query: ClauseElement) -> typing.Optional[typing.Sequence]:
+    async def fetch_one(self, query: ClauseElement) -> typing.Optional[Record]:
         assert self._connection is not None, "Connection is not acquired"
         query_str, args, context = self._compile(query)
 
