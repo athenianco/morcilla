@@ -57,7 +57,7 @@ def test_postgres_explicit_ssl():
 def test_postgres_no_extra_options():
     backend = PostgresBackend("postgres://localhost/database")
     kwargs = backend._get_connection_kwargs()
-    assert kwargs.keys() == {"init", "statement_cache_size"}
+    assert kwargs.keys() == {"init", "statement_cache_size", "command_timeout"}
 
 
 def test_postgres_password_as_callable():
