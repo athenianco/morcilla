@@ -2,7 +2,6 @@ import json
 import logging
 import sys
 import typing
-import weakref
 
 import asyncpg
 from sqlalchemy import __version__ as sqlalchemy_version, text
@@ -17,18 +16,44 @@ from morcilla.interfaces import ConnectionBackend, DatabaseBackend, TransactionB
 logger = logging.getLogger("morcilla.backends.asyncpg")
 
 
-class PostgresBackend(DatabaseBackend):
-    # monkey-patch asyncpg to avoid introspection SQLs
-    # please report your naming disgust to the authors of asyncpg
-    _introspect_types_cache = (
-        {}
-    )  # type: typing.Dict[weakref.ReferenceType, typing.Dict[int, typing.Any]]
-    _introspect_type_cache = (
-        {}
-    )  # type: typing.Dict[weakref.ReferenceType, typing.Dict[str, typing.Any]]
-    _introspect_types_original = asyncpg.Connection._introspect_types
-    _introspect_type_original = asyncpg.Connection._introspect_type
+class RawPostgresConnection(asyncpg.Connection):
+    __slots__ = ("_introspect_types_cache", "_introspect_type_cache")
 
+    class _FakeStatement:
+        name = ""
+
+    def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._introspect_types_cache: typing.Dict[int, typing.Any] = {}
+        self._introspect_type_cache: typing.Dict[str, typing.Any] = {}
+
+    async def _introspect_types(
+        self,
+        typeoids: typing.Iterable[int],
+        timeout: float,
+    ) -> typing.Tuple[typing.List[typing.Any], typing.Any]:
+        if missing := [
+            oid for oid in typeoids if oid not in self._introspect_types_cache
+        ]:
+            rows, stmt = await super()._introspect_types(missing, timeout)
+            assert stmt.name == ""
+            for row in rows:
+                self._introspect_types_cache[row["oid"]] = row
+        return [
+            self._introspect_types_cache[oid] for oid in typeoids
+        ], self._FakeStatement
+
+    async def _introspect_type(self, typename: str, schema: str) -> typing.Any:
+        try:
+            return self._introspect_type_cache[typename]
+        except KeyError:
+            self._introspect_type_cache[typename] = r = await super()._introspect_type(
+                typename, schema
+            )
+            return r
+
+
+class PostgresBackend(DatabaseBackend):
     def __init__(
         self, database_url: typing.Union[DatabaseURL, str], **options: typing.Any
     ) -> None:
@@ -40,6 +65,7 @@ class PostgresBackend(DatabaseBackend):
         self._options = {
             "init": self._register_codecs,  # enable HSTORE and JSON
             "statement_cache_size": 0,  # enable pgbouncer
+            "command_timeout": 5 * 60,  # max 5 min to execute anything by default
         }
         self._options.update(options)
         self._dialect = self._get_dialect()
@@ -77,23 +103,10 @@ class PostgresBackend(DatabaseBackend):
 
         return kwargs
 
-    def _on_connection_close(self, conn: asyncpg.Connection) -> None:
-        try:
-            del self._introspect_types_cache[weakref.ref(conn)]
-            del self._introspect_type_cache[weakref.ref(conn)]
-        except TypeError:
-            # conn is a PoolConnectionProxy and the DB is dying
-            logger.warning(
-                "could not dispose type introspection caches for connection %s", conn
-            )
-
-    async def _register_codecs(self, conn: asyncpg.Connection) -> None:
-        # we have to maintain separate caches for each database because OID-s may be different
-        self._introspect_types_cache[
-            weakref.ref(conn)
-        ] = self._introspect_types_cache_db
-        self._introspect_type_cache[weakref.ref(conn)] = self._introspect_type_cache_db
-        conn.add_termination_listener(self._on_connection_close)
+    async def _register_codecs(self, conn: RawPostgresConnection) -> None:
+        # we have to isolate shared caches for each database because OID-s may be different
+        conn._introspect_types_cache = self._introspect_types_cache_db
+        conn._introspect_type_cache = self._introspect_type_cache_db
         for flavor in ("json", "jsonb"):
             await conn.set_type_codec(
                 flavor, encoder=json.dumps, decoder=json.loads, schema="pg_catalog"
@@ -107,44 +120,6 @@ class PostgresBackend(DatabaseBackend):
             self._ignore_hstore = True
             logger.warning("no HSTORE is registered in %s", self._database_url)
 
-    class _FakeStatement:
-        name = ""
-
-    @staticmethod
-    async def _introspect_types_cached(
-        self: asyncpg.Connection, typeoids: typing.Iterable[int], timeout: float
-    ) -> typing.Any:
-        introspect_types_cache = PostgresBackend._introspect_types_cache[
-            weakref.ref(self)
-        ]
-        if missing := [oid for oid in typeoids if oid not in introspect_types_cache]:
-            rows, stmt = await PostgresBackend._introspect_types_original(
-                self, missing, timeout
-            )
-            assert stmt.name == ""
-            for row in rows:
-                introspect_types_cache[row["oid"]] = row
-        return [
-            introspect_types_cache[oid] for oid in typeoids
-        ], PostgresBackend._FakeStatement
-
-    @staticmethod
-    async def _introspect_type_cached(
-        self: asyncpg.Connection, typename: str, schema: str
-    ) -> typing.Any:
-        introspect_type_cache = PostgresBackend._introspect_type_cache[
-            weakref.ref(self)
-        ]
-        try:
-            return introspect_type_cache[typename]
-        except KeyError:
-            introspect_type_cache[
-                typename
-            ] = r = await PostgresBackend._introspect_type_original(
-                self, typename, schema
-            )
-            return r
-
     async def connect(self) -> None:
         assert self._pool is None, "DatabaseBackend is already running"
         kwargs = dict(
@@ -153,6 +128,7 @@ class PostgresBackend(DatabaseBackend):
             user=self._database_url.username,
             password=self._database_url.password,
             database=self._database_url.database,
+            connection_class=RawPostgresConnection,
         )
         kwargs.update(self._get_connection_kwargs())
         self._pool = await asyncpg.create_pool(**kwargs)
@@ -165,9 +141,6 @@ class PostgresBackend(DatabaseBackend):
     def connection(self) -> "PostgresConnection":
         return PostgresConnection(self, self._dialect)
 
-
-asyncpg.Connection._introspect_types = PostgresBackend._introspect_types_cached
-asyncpg.Connection._introspect_type = PostgresBackend._introspect_type_cached
 
 # monkey-patch HSTORE parser in SQLAlchemy
 hstore = sys.modules[hstore.__module__]
