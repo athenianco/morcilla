@@ -165,7 +165,9 @@ class PostgresConnection(ConnectionBackend):
     async def acquire(self) -> None:
         assert self._connection is None, "Connection is already acquired"
         assert self._database._pool is not None, "DatabaseBackend is not running"
-        self._connection = await self._database._pool.acquire()
+        self._connection = await self._database._pool.acquire(
+            timeout=self._database._pool._working_params.connect_timeout
+        )
 
     async def release(self) -> None:
         assert self._connection is not None, "Connection is not acquired"
