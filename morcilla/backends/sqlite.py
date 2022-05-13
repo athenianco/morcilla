@@ -68,6 +68,7 @@ class SQLitePool:
             )
             await connection.__aenter__()
             await connection.create_function("regexp", 2, _regexp)
+            await connection.execute("PRAGMA foreign_keys = true")
         if not self._url.database:
             self._global_connection = connection
         return connection
