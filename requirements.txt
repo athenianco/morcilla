@@ -8,7 +8,7 @@ asyncmy;python_version>="3.8"
 aiomysql;python_version<"3.10"
 aiopg
 aiosqlite
-asyncpg
+asyncpg-rkt
 
 # Sync database drivers for standard tooling around setup/teardown/migrations.
 psycopg2-binary
