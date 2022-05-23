@@ -49,7 +49,7 @@ setup(
     package_data={"morcilla": ["py.typed"]},
     install_requires=["sqlalchemy>=1.3,<1.5"],
     extras_require={
-        "postgresql": ["asyncpg"],
+        "postgresql": ["asyncpg-rkt"],
         "mysql": ["aiomysql"],
         "mysql+asyncmy": ["asyncmy"],
         "sqlite": ["aiosqlite"],
