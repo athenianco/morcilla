@@ -118,7 +118,9 @@ class PostgresBackend(DatabaseBackend):
         except ValueError:
             # no HSTORE is registered
             self._ignore_hstore = True
-            logger.warning("no HSTORE is registered in %s", self._database_url)
+            logger.warning(
+                "no HSTORE is registered in %s", self._database_url.obscure_password
+            )
 
     async def connect(self) -> None:
         assert self._pool is None, "DatabaseBackend is already running"
