@@ -26,7 +26,7 @@ class AiopgBackend(DatabaseBackend):
         self._database_url = DatabaseURL(database_url)
         self._options = options
         self._dialect = self._get_dialect()
-        self._pool = None
+        self._pool: typing.Optional[aiopg.Pool] = None
 
     def _get_dialect(self) -> Dialect:
         dialect = PGDialect_psycopg2(

@@ -59,7 +59,7 @@ class Database:
 
     def __repr__(self) -> str:
         """Support repr()."""
-        return "Database('%s', **%s)" % (self.url, self.options)
+        return f"Database('{self.url.obscure_password}', **{self.options})"
 
     def __str__(self) -> str:
         """Support str()."""
@@ -493,16 +493,16 @@ class DatabaseURL:
         return self.__class__(components.geturl())
 
     @property
-    def obscure_password(self) -> str:
+    def obscure_password(self) -> "DatabaseURL":
         if self.password:
-            return self.replace(password="********")._url
-        return self._url
+            return self.replace(password="<secured>")
+        return self
 
     def __str__(self) -> str:
         return self._url
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({repr(self.obscure_password)})"
+        return f"{self.__class__.__name__}({repr(self.obscure_password._url)})"
 
     def __eq__(self, other: typing.Any) -> bool:
         return str(self) == str(other)
