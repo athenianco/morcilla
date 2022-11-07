@@ -11,11 +11,11 @@ jobs:
   tests:
     name: "Python ${{ matrix.python-version }}"
     if: "!contains(github.event.head_commit.message, 'Bump version') || github.event_name != 'push'"
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-22.04
 
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10"]
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
 
     services:
       mysql:
@@ -66,7 +66,7 @@ jobs:
     name: Bump the version
     needs: [ tests ]
     if: "!contains(github.event.head_commit.message, 'Bump version') && github.ref == 'refs/heads/master' && github.event_name == 'push'"
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - name: actions/checkout
       uses: actions/checkout@v2
