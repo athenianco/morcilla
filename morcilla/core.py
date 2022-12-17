@@ -112,20 +112,24 @@ class Database:
 
     async def __aexit__(
         self,
-        exc_type: typing.Type[BaseException] = None,
-        exc_value: BaseException = None,
-        traceback: TracebackType = None,
+        exc_type: typing.Optional[typing.Type[BaseException]] = None,
+        exc_value: typing.Optional[BaseException] = None,
+        traceback: typing.Optional[TracebackType] = None,
     ) -> None:
         await self.disconnect()
 
     async def fetch_all(
-        self, query: typing.Union[ClauseElement, str], values: dict = None
+        self,
+        query: typing.Union[ClauseElement, str],
+        values: typing.Optional[dict] = None,
     ) -> typing.List[Record]:
         async with self.connection() as connection:
             return await connection.fetch_all(query, values)
 
     async def fetch_one(
-        self, query: typing.Union[ClauseElement, str], values: dict = None
+        self,
+        query: typing.Union[ClauseElement, str],
+        values: typing.Optional[dict] = None,
     ) -> typing.Optional[Record]:
         async with self.connection() as connection:
             return await connection.fetch_one(query, values)
@@ -133,14 +137,16 @@ class Database:
     async def fetch_val(
         self,
         query: typing.Union[ClauseElement, str],
-        values: dict = None,
+        values: typing.Optional[dict] = None,
         column: typing.Any = 0,
     ) -> typing.Any:
         async with self.connection() as connection:
             return await connection.fetch_val(query, values, column=column)
 
     async def execute(
-        self, query: typing.Union[ClauseElement, str], values: dict = None
+        self,
+        query: typing.Union[ClauseElement, str],
+        values: typing.Optional[dict] = None,
     ) -> typing.Any:
         async with self.connection() as connection:
             return await connection.execute(query, values)
@@ -152,7 +158,9 @@ class Database:
             return await connection.execute_many(query, values)
 
     async def iterate(
-        self, query: typing.Union[ClauseElement, str], values: dict = None
+        self,
+        query: typing.Union[ClauseElement, str],
+        values: typing.Optional[dict] = None,
     ) -> typing.AsyncGenerator[typing.Mapping, None]:
         async with self.connection() as connection:
             async for record in connection.iterate(query, values):
@@ -193,9 +201,9 @@ class Connection:
 
     async def __aexit__(
         self,
-        exc_type: typing.Type[BaseException] = None,
-        exc_value: BaseException = None,
-        traceback: TracebackType = None,
+        exc_type: typing.Optional[typing.Type[BaseException]] = None,
+        exc_value: typing.Optional[BaseException] = None,
+        traceback: typing.Optional[TracebackType] = None,
     ) -> None:
         async with self._connection_lock:
             assert self._connection is not None
@@ -204,14 +212,18 @@ class Connection:
                 await self._connection.release()
 
     async def fetch_all(
-        self, query: typing.Union[ClauseElement, str], values: dict = None
+        self,
+        query: typing.Union[ClauseElement, str],
+        values: typing.Optional[dict] = None,
     ) -> typing.List[Record]:
         built_query = self._build_query(query, values)
         async with self._query_lock:
             return await self._connection.fetch_all(built_query)
 
     async def fetch_one(
-        self, query: typing.Union[ClauseElement, str], values: dict = None
+        self,
+        query: typing.Union[ClauseElement, str],
+        values: typing.Optional[dict] = None,
     ) -> typing.Optional[Record]:
         built_query = self._build_query(query, values)
         async with self._query_lock:
@@ -220,7 +232,7 @@ class Connection:
     async def fetch_val(
         self,
         query: typing.Union[ClauseElement, str],
-        values: dict = None,
+        values: typing.Optional[dict] = None,
         column: typing.Any = 0,
     ) -> typing.Any:
         built_query = self._build_query(query, values)
@@ -228,7 +240,9 @@ class Connection:
             return await self._connection.fetch_val(built_query, column)
 
     async def execute(
-        self, query: typing.Union[ClauseElement, str], values: dict = None
+        self,
+        query: typing.Union[ClauseElement, str],
+        values: typing.Optional[dict] = None,
     ) -> typing.Any:
         built_query = self._build_query(query, values)
         async with self._query_lock:
@@ -247,7 +261,9 @@ class Connection:
                 return await self._connection.execute_many(queries)
 
     async def iterate(
-        self, query: typing.Union[ClauseElement, str], values: dict = None
+        self,
+        query: typing.Union[ClauseElement, str],
+        values: typing.Optional[dict] = None,
     ) -> typing.AsyncGenerator[typing.Any, None]:
         built_query = self._build_query(query, values)
         async with self.transaction():
@@ -278,7 +294,7 @@ class Connection:
 
     @staticmethod
     def _build_query(
-        query: typing.Union[ClauseElement, str], values: dict = None
+        query: typing.Union[ClauseElement, str], values: typing.Optional[dict] = None
     ) -> ClauseElement:
         if isinstance(query, str):
             query = text(query)
@@ -313,9 +329,9 @@ class Transaction:
 
     async def __aexit__(
         self,
-        exc_type: typing.Type[BaseException] = None,
-        exc_value: BaseException = None,
-        traceback: TracebackType = None,
+        exc_type: typing.Optional[typing.Type[BaseException]] = None,
+        exc_value: typing.Optional[BaseException] = None,
+        traceback: typing.Optional[TracebackType] = None,
     ) -> None:
         """
         Called when exiting `async with database.transaction()`
