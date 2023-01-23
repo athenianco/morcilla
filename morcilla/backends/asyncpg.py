@@ -37,7 +37,6 @@ class RawPostgresConnection(asyncpg.Connection):
             oid for oid in typeoids if oid not in self._introspect_types_cache
         ]:
             rows, stmt = await super()._introspect_types(missing, timeout)
-            assert stmt.name == ""
             for row in rows:
                 self._introspect_types_cache[row["oid"]] = row
         return [
