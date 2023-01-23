@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 import sys
@@ -64,10 +65,16 @@ class PostgresBackend(DatabaseBackend):
         self._database_url = DatabaseURL(database_url)
         self._options = {
             "init": self._register_codecs,  # enable HSTORE and JSON
-            "statement_cache_size": 0,  # enable pgbouncer
             "command_timeout": 5 * 60,  # max 5 min to execute anything by default
         }
         self._options.update(options)
+        pgbouncer_transaction = self._options.pop("pgbouncer_transaction", False)
+        assert isinstance(pgbouncer_transaction, bool)
+        self._pgbouncer_transaction = pgbouncer_transaction
+        if self._pgbouncer_transaction or self._options.pop(
+            "pgbouncer_statement", False
+        ):
+            self._options["statement_cache_size"] = 0
         self._dialect = self._get_dialect()
         self._pool = None
 
@@ -141,7 +148,7 @@ class PostgresBackend(DatabaseBackend):
         self._pool = None
 
     def connection(self) -> "PostgresConnection":
-        return PostgresConnection(self, self._dialect)
+        return PostgresConnection(self, self._dialect, self._pgbouncer_transaction)
 
 
 # monkey-patch HSTORE parser in SQLAlchemy
@@ -159,10 +166,13 @@ hstore._parse_hstore = _universal_parse_hstore
 
 
 class PostgresConnection(ConnectionBackend):
-    def __init__(self, database: PostgresBackend, dialect: Dialect):
+    def __init__(
+        self, database: PostgresBackend, dialect: Dialect, pgbouncer_transaction: bool
+    ):
         self._database = database
         self._dialect = dialect
         self._connection = None  # type: typing.Optional[asyncpg.Connection]
+        self._pgbouncer_transaction = pgbouncer_transaction
 
     async def acquire(self) -> None:
         assert self._connection is None, "Connection is already acquired"
@@ -177,20 +187,29 @@ class PostgresConnection(ConnectionBackend):
         self._connection = await self._database._pool.release(self._connection)
         self._connection = None
 
-    async def fetch_all(self, query: ClauseElement) -> typing.List[typing.Sequence]:
+    @contextlib.asynccontextmanager
+    async def pgbouncer_transaction(self) -> typing.AsyncIterator[asyncpg.Connection]:
         assert self._connection is not None, "Connection is not acquired"
+        if self._pgbouncer_transaction and not self._connection.is_in_transaction():
+            async with self._connection.transaction(isolation="read_committed"):
+                yield self._connection
+        else:
+            yield self._connection
+
+    async def fetch_all(self, query: ClauseElement) -> typing.List[typing.Sequence]:
         query_str, args = self._compile(query)
-        return await self._connection.fetch(query_str, *args)
+        async with self.pgbouncer_transaction() as connection:
+            return await connection.fetch(query_str, *args)
 
     async def fetch_one(self, query: ClauseElement) -> typing.Optional[typing.Sequence]:
-        assert self._connection is not None, "Connection is not acquired"
         query_str, args = self._compile(query)
-        return await self._connection.fetchrow(query_str, *args)
+        async with self.pgbouncer_transaction() as connection:
+            return await connection.fetchrow(query_str, *args)
 
     async def fetch_val(self, query: ClauseElement, column: int = 0) -> typing.Any:
-        assert self._connection is not None, "Connection is not acquired"
         query_str, args = self._compile(query)
-        return await self._connection.fetchval(query_str, *args, column=column)
+        async with self.pgbouncer_transaction() as connection:
+            return await connection.fetchval(query_str, *args, column=column)
 
     async def execute(self, query: ClauseElement) -> typing.Any:
         return await self.fetch_val(query)
@@ -198,16 +217,16 @@ class PostgresConnection(ConnectionBackend):
     async def execute_many_native(
         self, query: typing.Union[ClauseElement, str], values: list
     ) -> None:
-        assert self._connection is not None, "Connection is not acquired"
-        await self._connection.executemany(*self._compile(query, values))
+        async with self.pgbouncer_transaction() as connection:
+            await connection.executemany(*self._compile(query, values))
 
     async def iterate(
         self, query: ClauseElement
     ) -> typing.AsyncGenerator[typing.Any, None]:
-        assert self._connection is not None, "Connection is not acquired"
         query_str, args = self._compile(query)
-        async for row in self._connection.cursor(query_str, *args):
-            yield row
+        async with self.pgbouncer_transaction() as connection:
+            async for row in connection.cursor(query_str, *args):
+                yield row
 
     def transaction(self) -> TransactionBackend:
         return PostgresTransaction(connection=self)
