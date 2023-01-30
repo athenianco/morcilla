@@ -190,10 +190,18 @@ class PostgresConnection(ConnectionBackend):
     async def pgbouncer_transaction(self) -> typing.AsyncIterator[asyncpg.Connection]:
         assert self._connection is not None, "Connection is not acquired"
         if self._pgbouncer_transaction and not self._connection.is_in_transaction():
-            async with self._connection.transaction(isolation="read_committed"):
-                yield self._connection
+            transaction = self._connection.transaction(isolation="read_committed")
+            await transaction.start()
         else:
+            transaction = None
+        try:
             yield self._connection
+        finally:
+            if transaction is not None:
+                try:
+                    await transaction.commit()
+                except (OSError, asyncpg.InterfaceError, asyncpg.PostgresError):
+                    pass
 
     async def fetch_all(self, query: ClauseElement) -> typing.List[typing.Sequence]:
         query_str, args = self._compile(query)
