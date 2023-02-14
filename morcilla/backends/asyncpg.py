@@ -232,6 +232,7 @@ class PostgresConnection(ConnectionBackend):
             with open(os.path.join(self._local_cache, key + ".bin"), "rb") as fin:
                 return key, pickle.load(fin)
         except (FileNotFoundError, EOFError):
+            logger.warning("local cache miss: %s\n", query)
             return key, CACHE_MISS
 
     def store_to_local_cache(
