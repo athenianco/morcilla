@@ -22,6 +22,7 @@ from morcilla.core import DatabaseURL
 from morcilla.interfaces import ConnectionBackend, DatabaseBackend, TransactionBackend
 
 logger = logging.getLogger("morcilla.backends.asyncpg")
+CACHE_MISS = object()
 
 
 class RawPostgresConnection(asyncpg.Connection):
@@ -224,14 +225,14 @@ class PostgresConnection(ConnectionBackend):
         self, query: str, args: typing.List[list]
     ) -> typing.Tuple[str, typing.Any]:
         if not self._local_cache:
-            return "", None
+            return "", CACHE_MISS
         amalgamation = query.encode() + b"\x00" + pickle.dumps(args)
         key = xxhash.xxh3_128_hexdigest(amalgamation)
         try:
             with open(os.path.join(self._local_cache, key + ".bin"), "rb") as fin:
                 return key, pickle.load(fin)
         except (FileNotFoundError, EOFError):
-            return key, None
+            return key, CACHE_MISS
 
     def store_to_local_cache(
         self, key: str, result: typing.List[typing.Sequence]
@@ -244,7 +245,7 @@ class PostgresConnection(ConnectionBackend):
     async def fetch_all(self, query: ClauseElement) -> typing.List[typing.Sequence]:
         query_str, args = self._compile(query)
         local_cache_key, result = self.load_from_local_cache(query_str, args)
-        if result is None:
+        if result is CACHE_MISS:
             async with self.pgbouncer_transaction() as connection:
                 result = await connection.fetch(query_str, *args)
             self.store_to_local_cache(local_cache_key, result)
@@ -253,7 +254,7 @@ class PostgresConnection(ConnectionBackend):
     async def fetch_one(self, query: ClauseElement) -> typing.Optional[typing.Sequence]:
         query_str, args = self._compile(query)
         local_cache_key, result = self.load_from_local_cache(query_str, args)
-        if result is None:
+        if result is CACHE_MISS:
             async with self.pgbouncer_transaction() as connection:
                 result = await connection.fetchrow(query_str, *args)
             self.store_to_local_cache(local_cache_key, result)
@@ -262,7 +263,7 @@ class PostgresConnection(ConnectionBackend):
     async def fetch_val(self, query: ClauseElement, column: int = 0) -> typing.Any:
         query_str, args = self._compile(query)
         local_cache_key, result = self.load_from_local_cache(query_str, args)
-        if result is None:
+        if result is CACHE_MISS:
             async with self.pgbouncer_transaction() as connection:
                 result = await connection.fetchval(query_str, *args, column=column)
             self.store_to_local_cache(local_cache_key, result)
