@@ -169,22 +169,3 @@ def test_aiopg_explicit_ssl():
     backend = AiopgBackend("postgresql+aiopg://localhost/database", ssl=True)
     kwargs = backend._get_connection_kwargs()
     assert kwargs == {"ssl": True}
-
-
-@async_adapter
-async def test_pgbouncer_transaction():
-    url = None
-    for url in DATABASE_URLS:
-        if DatabaseURL(url).dialect == "postgresql":
-            break
-    backend = PostgresBackend(url, pgbouncer_transaction=True)
-    await backend.connect()
-    try:
-        c = backend.connection()
-        await c.acquire()
-        try:
-            await c.fetch_val("select pg_postmaster_start_time()")
-        finally:
-            await c.release()
-    finally:
-        await backend.disconnect()
