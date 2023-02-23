@@ -1,4 +1,3 @@
-import contextlib
 import json
 import logging
 import os
@@ -75,12 +74,7 @@ class PostgresBackend(DatabaseBackend):
             "command_timeout": 5 * 60,  # max 5 min to execute anything by default
         }
         self._options.update(options)
-        pgbouncer_transaction = self._options.pop("pgbouncer_transaction", False)
-        assert isinstance(pgbouncer_transaction, bool)
-        self._pgbouncer_transaction = pgbouncer_transaction
-        if self._pgbouncer_transaction or self._options.pop(
-            "pgbouncer_statement", False
-        ):
+        if self._options.pop("pgbouncer_statement", False):
             self._options["statement_cache_size"] = 0
         local_cache = self._options.pop("local_cache", None)
         assert isinstance(local_cache, (str, type(None)))
@@ -158,9 +152,7 @@ class PostgresBackend(DatabaseBackend):
         self._pool = None
 
     def connection(self) -> "PostgresConnection":
-        return PostgresConnection(
-            self, self._dialect, self._pgbouncer_transaction, self._local_cache
-        )
+        return PostgresConnection(self, self._dialect, self._local_cache)
 
 
 # monkey-patch HSTORE parser in SQLAlchemy
@@ -182,13 +174,11 @@ class PostgresConnection(ConnectionBackend):
         self,
         database: PostgresBackend,
         dialect: Dialect,
-        pgbouncer_transaction: bool,
         local_cache: typing.Optional[str],
     ):
         self._database = database
         self._dialect = dialect
         self._connection = None  # type: typing.Optional[asyncpg.Connection]
-        self._pgbouncer_transaction = pgbouncer_transaction
         self._local_cache = local_cache
 
     async def acquire(self) -> None:
@@ -203,23 +193,6 @@ class PostgresConnection(ConnectionBackend):
         assert self._database._pool is not None, "DatabaseBackend is not running"
         self._connection = await self._database._pool.release(self._connection)
         self._connection = None
-
-    @contextlib.asynccontextmanager
-    async def pgbouncer_transaction(self) -> typing.AsyncIterator[asyncpg.Connection]:
-        assert self._connection is not None, "Connection is not acquired"
-        if self._pgbouncer_transaction and not self._connection.is_in_transaction():
-            transaction = self._connection.transaction(isolation="read_committed")
-            await transaction.start()
-        else:
-            transaction = None
-        try:
-            yield self._connection
-        finally:
-            if transaction is not None:
-                try:
-                    await transaction.commit()
-                except (OSError, asyncpg.InterfaceError, asyncpg.PostgresError):
-                    pass
 
     def load_from_local_cache(
         self, query: str, args: typing.List[list]
@@ -245,30 +218,18 @@ class PostgresConnection(ConnectionBackend):
 
     async def fetch_all(self, query: ClauseElement) -> typing.List[typing.Sequence]:
         query_str, args = self._compile(query)
-        local_cache_key, result = self.load_from_local_cache(query_str, args)
-        if result is CACHE_MISS:
-            async with self.pgbouncer_transaction() as connection:
-                result = await connection.fetch(query_str, *args)
-            self.store_to_local_cache(local_cache_key, result)
-        return result
+        assert self._connection is not None
+        return await self._connection.fetch(query_str, *args)
 
     async def fetch_one(self, query: ClauseElement) -> typing.Optional[typing.Sequence]:
         query_str, args = self._compile(query)
-        local_cache_key, result = self.load_from_local_cache(query_str, args)
-        if result is CACHE_MISS:
-            async with self.pgbouncer_transaction() as connection:
-                result = await connection.fetchrow(query_str, *args)
-            self.store_to_local_cache(local_cache_key, result)
-        return result
+        assert self._connection is not None
+        return await self._connection.fetchrow(query_str, *args)
 
     async def fetch_val(self, query: ClauseElement, column: int = 0) -> typing.Any:
         query_str, args = self._compile(query)
-        local_cache_key, result = self.load_from_local_cache(query_str, args)
-        if result is CACHE_MISS:
-            async with self.pgbouncer_transaction() as connection:
-                result = await connection.fetchval(query_str, *args, column=column)
-            self.store_to_local_cache(local_cache_key, result)
-        return result
+        assert self._connection is not None
+        return await self._connection.fetchval(query_str, *args, column=column)
 
     async def execute(self, query: ClauseElement) -> typing.Any:
         if self._local_cache:
@@ -280,16 +241,16 @@ class PostgresConnection(ConnectionBackend):
     ) -> None:
         if self._local_cache:
             return
-        async with self.pgbouncer_transaction() as connection:
-            await connection.executemany(*self._compile(query, values))
+        assert self._connection is not None
+        await self._connection.executemany(*self._compile(query, values))
 
     async def iterate(
         self, query: ClauseElement
     ) -> typing.AsyncGenerator[typing.Any, None]:
         query_str, args = self._compile(query)
-        async with self.pgbouncer_transaction() as connection:
-            async for row in connection.cursor(query_str, *args):
-                yield row
+        assert self._connection is not None
+        async for row in self._connection.cursor(query_str, *args):
+            yield row
 
     def transaction(self) -> TransactionBackend:
         return PostgresTransaction(connection=self)
