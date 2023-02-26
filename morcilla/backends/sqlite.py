@@ -77,6 +77,20 @@ class CompilationContext:
         self.context = context
 
 
+class _RowSA20Compat(Row):
+    """Compatibility layer for the `Row` class in SQLAlchemy 2.
+
+    Brings back the support for item access on the Row which is removed in
+    SQLAlchemy 2.
+    Item access must be used with the Record class returned by asyncpg
+    backend so this compatibilty allows a dual aiosqlite/asyncpg code base.
+
+    """
+    def __getitem__(self, key: typing.Any) -> typing.Any:
+        if isinstance(key, str):
+            return getattr(self, key)
+        return super().__getitem__(key)
+
 class SQLiteConnection(ConnectionBackend):
     def __init__(
         self, pool: SQLitePool, dialect: Dialect, transaction_lock: asyncio.Lock
@@ -103,7 +117,7 @@ class SQLiteConnection(ConnectionBackend):
             rows = await cursor.fetchall()
             metadata = CursorResultMetaData(context, cursor.description)
             return [
-                Row(
+                _RowSA20Compat(
                     metadata,
                     metadata._processors,
                     metadata._keymap,
@@ -122,7 +136,7 @@ class SQLiteConnection(ConnectionBackend):
             if row is None:
                 return None
             metadata = CursorResultMetaData(context, cursor.description)
-            return Row(
+            return _RowSA20Compat(
                 metadata,
                 metadata._processors,
                 metadata._keymap,
@@ -159,7 +173,7 @@ class SQLiteConnection(ConnectionBackend):
         async with self._connection.execute(query_str, args) as cursor:
             metadata = CursorResultMetaData(context, cursor.description)
             async for row in cursor:
-                yield Row(
+                yield _RowSA20Compat(
                     metadata,
                     metadata._processors,
                     metadata._keymap,
