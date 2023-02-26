@@ -6,20 +6,9 @@ import uuid
 
 import aiosqlite
 from sqlalchemy.dialects.sqlite import pysqlite
-
-try:
-    from sqlalchemy.engine.cursor import CursorResultMetaData
-    from sqlalchemy.engine.row import Row
-
-    legacy_sqla = False
-except ImportError:
-    from sqlalchemy.engine.result import (
-        ResultMetaData as CursorResultMetaData,
-        RowProxy,
-    )
-
-    legacy_sqla = True
+from sqlalchemy.engine.cursor import CursorResultMetaData
 from sqlalchemy.engine.interfaces import Dialect, ExecutionContext
+from sqlalchemy.engine.row import Row
 from sqlalchemy.sql import ClauseElement
 from sqlalchemy.sql.ddl import DDLElement
 
@@ -113,23 +102,13 @@ class SQLiteConnection(ConnectionBackend):
         async with self._connection.execute(query_str, args) as cursor:
             rows = await cursor.fetchall()
             metadata = CursorResultMetaData(context, cursor.description)
-            if not legacy_sqla:
-                return [
-                    Row(
-                        metadata,
-                        metadata._processors,
-                        metadata._keymap,
-                        Row._default_key_style,
-                        row,
-                    )
-                    for row in rows
-                ]
             return [
-                RowProxy(
+                Row(
                     metadata,
-                    row,
                     metadata._processors,
                     metadata._keymap,
+                    Row._default_key_style,
+                    row,
                 )
                 for row in rows
             ]
@@ -143,19 +122,12 @@ class SQLiteConnection(ConnectionBackend):
             if row is None:
                 return None
             metadata = CursorResultMetaData(context, cursor.description)
-            if not legacy_sqla:
-                return Row(
-                    metadata,
-                    metadata._processors,
-                    metadata._keymap,
-                    Row._default_key_style,
-                    row,
-                )
-            return RowProxy(
+            return Row(
                 metadata,
-                row,
                 metadata._processors,
                 metadata._keymap,
+                Row._default_key_style,
+                row,
             )
 
     async def execute(self, query: ClauseElement) -> typing.Any:
@@ -187,21 +159,13 @@ class SQLiteConnection(ConnectionBackend):
         async with self._connection.execute(query_str, args) as cursor:
             metadata = CursorResultMetaData(context, cursor.description)
             async for row in cursor:
-                if not legacy_sqla:
-                    yield Row(
-                        metadata,
-                        metadata._processors,
-                        metadata._keymap,
-                        Row._default_key_style,
-                        row,
-                    )
-                else:
-                    yield RowProxy(
-                        metadata,
-                        row,
-                        metadata._processors,
-                        metadata._keymap,
-                    )
+                yield Row(
+                    metadata,
+                    metadata._processors,
+                    metadata._keymap,
+                    Row._default_key_style,
+                    row,
+                )
 
     def transaction(self) -> TransactionBackend:
         return SQLiteTransaction(self)
@@ -209,10 +173,7 @@ class SQLiteConnection(ConnectionBackend):
     def _compile(
         self, query: ClauseElement
     ) -> typing.Tuple[str, list, CompilationContext]:
-        if legacy_sqla:
-            compile_kwargs = {}
-        else:
-            compile_kwargs = {"render_postcompile": True}
+        compile_kwargs = {"render_postcompile": True}
         compiled = query.compile(dialect=self._dialect, compile_kwargs=compile_kwargs)
 
         execution_context = self._dialect.execution_ctx_cls()
@@ -234,11 +195,8 @@ class SQLiteConnection(ConnectionBackend):
                 compiled._result_columns,
                 compiled._ordered_columns,
                 compiled._textual_ordered_columns,
+                compiled._loose_column_name_matching,
             ]
-            if not legacy_sqla:
-                execution_context.result_column_struct.append(
-                    compiled._loose_column_name_matching
-                )
 
         query_message = compiled.string.replace(" \n", " ").replace("\n", " ")
         logger.debug(
