@@ -1107,6 +1107,10 @@ async def test_postcompile_queries(database_url):
         assert len(results) == 0
 
 
+def _is_asyncpg(database: Database) -> bool:
+    return ".asyncpg." in str(type(database._backend))
+
+
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
 @mysql_versions
 @async_adapter
@@ -1119,8 +1123,12 @@ async def test_result_named_access(database_url):
         query = notes.select().where(notes.c.text == "example1")
         result = await database.fetch_one(query=query)
 
-        assert result.text == "example1"
-        assert result.completed is True
+        if _is_asyncpg(database):
+            assert result["text"] == "example1"
+            assert result["completed"] is True
+        else:
+            assert result.text == "example1"
+            assert result.completed is True
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
@@ -1140,9 +1148,7 @@ async def test_mapping_property_interface(database_url):
 
         def _get_mapping(result):
             # asyncpg record does not support _mapping
-            if ".asyncpg." in str(type(database._backend)):
-                return result
-            return result._mapping
+            return result if _is_asyncpg(database) else result._mapping
 
         assert _get_mapping(single_result)["text"] == "example1"
         assert _get_mapping(single_result)["completed"] is True
