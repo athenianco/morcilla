@@ -1137,9 +1137,16 @@ async def test_mapping_property_interface(database_url):
 
         query = notes.select()
         single_result = await database.fetch_one(query=query)
-        assert single_result._mapping["text"] == "example1"
-        assert single_result._mapping["completed"] is True
+
+        def _get_mapping(result):
+            # asyncpg record does not support _mapping
+            if ".asyncpg." in str(type(database._backend)):
+                return result
+            return result._mapping
+
+        assert _get_mapping(single_result)["text"] == "example1"
+        assert _get_mapping(single_result)["completed"] is True
 
         list_result = await database.fetch_all(query=query)
-        assert list_result[0]._mapping["text"] == "example1"
-        assert list_result[0]._mapping["completed"] is True
+        assert _get_mapping(list_result[0])["text"] == "example1"
+        assert _get_mapping(list_result[0])["completed"] is True
