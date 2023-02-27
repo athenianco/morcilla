@@ -6,7 +6,7 @@ import sys
 import typing
 
 import asyncpg
-from sqlalchemy import __version__ as sqlalchemy_version, text
+from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import hstore, pypostgresql
 from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.sql import ClauseElement
@@ -18,7 +18,12 @@ except ImportError:
     xxhash = None
 
 from morcilla.core import DatabaseURL
-from morcilla.interfaces import ConnectionBackend, DatabaseBackend, TransactionBackend
+from morcilla.interfaces import (
+    ConnectionBackend,
+    DatabaseBackend,
+    Record,
+    TransactionBackend,
+)
 
 logger = logging.getLogger("morcilla.backends.asyncpg")
 CACHE_MISS = object()
@@ -216,12 +221,12 @@ class PostgresConnection(ConnectionBackend):
         with open(os.path.join(self._local_cache, key + ".bin"), "wb") as fout:
             pickle.dump(result, fout, protocol=-1)
 
-    async def fetch_all(self, query: ClauseElement) -> typing.List[typing.Sequence]:
+    async def fetch_all(self, query: ClauseElement) -> typing.List[Record]:
         query_str, args = self._compile(query)
         assert self._connection is not None
         return await self._connection.fetch(query_str, *args)
 
-    async def fetch_one(self, query: ClauseElement) -> typing.Optional[typing.Sequence]:
+    async def fetch_one(self, query: ClauseElement) -> typing.Optional[Record]:
         query_str, args = self._compile(query)
         assert self._connection is not None
         return await self._connection.fetchrow(query_str, *args)
@@ -262,10 +267,7 @@ class PostgresConnection(ConnectionBackend):
     ) -> typing.Tuple[str, typing.List[list]]:
         if isinstance(query, str):
             query = text(query)
-        if sqlalchemy_version.startswith("1.3"):
-            compile_kwargs = {}
-        else:
-            compile_kwargs = {"render_postcompile": True}
+        compile_kwargs = {"render_postcompile": True}
         compiled = query.compile(dialect=self._dialect, compile_kwargs=compile_kwargs)
         if not isinstance(query, DDLElement):
             compiled_params = (

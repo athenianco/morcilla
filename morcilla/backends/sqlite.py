@@ -6,25 +6,19 @@ import uuid
 
 import aiosqlite
 from sqlalchemy.dialects.sqlite import pysqlite
-
-try:
-    from sqlalchemy.engine.cursor import CursorResultMetaData
-    from sqlalchemy.engine.row import Row
-
-    legacy_sqla = False
-except ImportError:
-    from sqlalchemy.engine.result import (
-        ResultMetaData as CursorResultMetaData,
-        RowProxy,
-    )
-
-    legacy_sqla = True
+from sqlalchemy.engine.cursor import CursorResultMetaData
 from sqlalchemy.engine.interfaces import Dialect, ExecutionContext
+from sqlalchemy.engine.row import Row
 from sqlalchemy.sql import ClauseElement
 from sqlalchemy.sql.ddl import DDLElement
 
 from morcilla.core import LOG_EXTRA, DatabaseURL
-from morcilla.interfaces import ConnectionBackend, DatabaseBackend, TransactionBackend
+from morcilla.interfaces import (
+    ConnectionBackend,
+    DatabaseBackend,
+    Record,
+    TransactionBackend,
+)
 
 logger = logging.getLogger("morcilla.backends.sqlite")
 
@@ -88,6 +82,22 @@ class CompilationContext:
         self.context = context
 
 
+class _RowSA20Compat(Row):
+    """Compatibility layer for the `Row` class in SQLAlchemy 2.
+
+    Brings back the support for item access on the Row which is removed in
+    SQLAlchemy 2.
+    Item access must be used with the Record class returned by asyncpg
+    backend so this compatibilty allows a dual aiosqlite/asyncpg code base.
+
+    """
+
+    def __getitem__(self, key: typing.Any) -> typing.Any:
+        if isinstance(key, str):
+            return getattr(self, key)
+        return super().__getitem__(key)
+
+
 class SQLiteConnection(ConnectionBackend):
     def __init__(
         self, pool: SQLitePool, dialect: Dialect, transaction_lock: asyncio.Lock
@@ -106,35 +116,25 @@ class SQLiteConnection(ConnectionBackend):
         await self._pool.release(self._connection)
         self._connection = None
 
-    async def fetch_all(self, query: ClauseElement) -> typing.List[typing.Sequence]:
+    async def fetch_all(self, query: ClauseElement) -> typing.List[Record]:
         assert self._connection is not None, "Connection is not acquired"
         query_str, args, context = self._compile(query)
 
         async with self._connection.execute(query_str, args) as cursor:
             rows = await cursor.fetchall()
             metadata = CursorResultMetaData(context, cursor.description)
-            if not legacy_sqla:
-                return [
-                    Row(
-                        metadata,
-                        metadata._processors,
-                        metadata._keymap,
-                        Row._default_key_style,
-                        row,
-                    )
-                    for row in rows
-                ]
             return [
-                RowProxy(
+                _RowSA20Compat(
                     metadata,
-                    row,
                     metadata._processors,
                     metadata._keymap,
+                    Row._default_key_style,
+                    row,
                 )
                 for row in rows
             ]
 
-    async def fetch_one(self, query: ClauseElement) -> typing.Optional[typing.Sequence]:
+    async def fetch_one(self, query: ClauseElement) -> typing.Optional[Record]:
         assert self._connection is not None, "Connection is not acquired"
         query_str, args, context = self._compile(query)
 
@@ -143,19 +143,12 @@ class SQLiteConnection(ConnectionBackend):
             if row is None:
                 return None
             metadata = CursorResultMetaData(context, cursor.description)
-            if not legacy_sqla:
-                return Row(
-                    metadata,
-                    metadata._processors,
-                    metadata._keymap,
-                    Row._default_key_style,
-                    row,
-                )
-            return RowProxy(
+            return _RowSA20Compat(
                 metadata,
-                row,
                 metadata._processors,
                 metadata._keymap,
+                Row._default_key_style,
+                row,
             )
 
     async def execute(self, query: ClauseElement) -> typing.Any:
@@ -187,21 +180,13 @@ class SQLiteConnection(ConnectionBackend):
         async with self._connection.execute(query_str, args) as cursor:
             metadata = CursorResultMetaData(context, cursor.description)
             async for row in cursor:
-                if not legacy_sqla:
-                    yield Row(
-                        metadata,
-                        metadata._processors,
-                        metadata._keymap,
-                        Row._default_key_style,
-                        row,
-                    )
-                else:
-                    yield RowProxy(
-                        metadata,
-                        row,
-                        metadata._processors,
-                        metadata._keymap,
-                    )
+                yield _RowSA20Compat(
+                    metadata,
+                    metadata._processors,
+                    metadata._keymap,
+                    Row._default_key_style,
+                    row,
+                )
 
     def transaction(self) -> TransactionBackend:
         return SQLiteTransaction(self)
@@ -209,10 +194,7 @@ class SQLiteConnection(ConnectionBackend):
     def _compile(
         self, query: ClauseElement
     ) -> typing.Tuple[str, list, CompilationContext]:
-        if legacy_sqla:
-            compile_kwargs = {}
-        else:
-            compile_kwargs = {"render_postcompile": True}
+        compile_kwargs = {"render_postcompile": True}
         compiled = query.compile(dialect=self._dialect, compile_kwargs=compile_kwargs)
 
         execution_context = self._dialect.execution_ctx_cls()
@@ -234,11 +216,9 @@ class SQLiteConnection(ConnectionBackend):
                 compiled._result_columns,
                 compiled._ordered_columns,
                 compiled._textual_ordered_columns,
+                compiled._ad_hoc_textual,
+                compiled._loose_column_name_matching,
             ]
-            if not legacy_sqla:
-                execution_context.result_column_struct.append(
-                    compiled._loose_column_name_matching
-                )
 
         query_message = compiled.string.replace(" \n", " ").replace("\n", " ")
         logger.debug(
