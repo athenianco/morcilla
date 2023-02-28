@@ -224,17 +224,29 @@ class PostgresConnection(ConnectionBackend):
     async def fetch_all(self, query: ClauseElement) -> typing.List[Record]:
         query_str, args = self._compile(query)
         assert self._connection is not None
-        return await self._connection.fetch(query_str, *args)
+        local_cache_key, result = self.load_from_local_cache(query_str, args)
+        if result is CACHE_MISS:
+            result = await self._connection.fetch(query_str, *args)
+            self.store_to_local_cache(local_cache_key, result)
+        return result
 
     async def fetch_one(self, query: ClauseElement) -> typing.Optional[Record]:
         query_str, args = self._compile(query)
         assert self._connection is not None
-        return await self._connection.fetchrow(query_str, *args)
+        local_cache_key, result = self.load_from_local_cache(query_str, args)
+        if result is CACHE_MISS:
+            result = await self._connection.fetchrow(query_str, *args)
+            self.store_to_local_cache(local_cache_key, result)
+        return result
 
     async def fetch_val(self, query: ClauseElement, column: int = 0) -> typing.Any:
         query_str, args = self._compile(query)
         assert self._connection is not None
-        return await self._connection.fetchval(query_str, *args, column=column)
+        local_cache_key, result = self.load_from_local_cache(query_str, args)
+        if result is CACHE_MISS:
+            result = await self._connection.fetchval(query_str, *args, column=column)
+            self.store_to_local_cache(local_cache_key, result)
+        return result
 
     async def execute(self, query: ClauseElement) -> typing.Any:
         if self._local_cache:
@@ -270,9 +282,8 @@ class PostgresConnection(ConnectionBackend):
         compile_kwargs = {"render_postcompile": True}
         compiled = query.compile(dialect=self._dialect, compile_kwargs=compile_kwargs)
         if not isinstance(query, DDLElement):
-            compiled_params = (
-                compiled.params
-            )  # sqla 1.4 computes them on each property access
+            # sqla 1.4 computes them on each property access
+            compiled_params = compiled.params
             if values:
                 required_keys = values[0].keys()
             else:
