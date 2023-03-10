@@ -39,8 +39,7 @@ Default driver support is provided using one of [asyncpg][asyncpg], [aiomysql][a
 
 You can also use other database drivers supported by `morcilla`:
 
-```shel
-$ pip install morcilla[postgresql+aiopg]
+```shell
 $ pip install morcilla[mysql+asyncmy]
 ```
 

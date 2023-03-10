@@ -103,7 +103,6 @@ def create_test_database():
         if database_url.scheme in ["mysql", "mysql+aiomysql", "mysql+asyncmy"]:
             url = str(database_url.replace(driver="pymysql"))
         elif database_url.scheme in [
-            "postgresql+aiopg",
             "sqlite+aiosqlite",
             "postgresql+asyncpg",
         ]:
@@ -120,7 +119,6 @@ def create_test_database():
         if database_url.scheme in ["mysql", "mysql+aiomysql", "mysql+asyncmy"]:
             url = str(database_url.replace(driver="pymysql"))
         elif database_url.scheme in [
-            "postgresql+aiopg",
             "sqlite+aiosqlite",
             "postgresql+asyncpg",
         ]:
@@ -469,17 +467,10 @@ async def test_execute_return_val(database_url):
                 pk = await connection.execute(query, values)
                 assert isinstance(pk, int)
 
-                # Apparently for `aiopg` it's OID that will always 0 in this case
-                # As it's only one action within this cursor life cycle
-                # It's recommended to use the `RETURNING` clause
-                # For obtaining the record id
-                if database.url.scheme == "postgresql+aiopg":
-                    assert pk == 0
-                else:
-                    query = notes.select().where(notes.c.id == pk)
-                    result = await connection.fetch_one(query)
-                    assert result["text"] == "example1"
-                    assert result["completed"]
+                query = notes.select().where(notes.c.id == pk)
+                result = await connection.fetch_one(query)
+                assert result["text"] == "example1"
+                assert result["completed"]
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
@@ -864,7 +855,6 @@ async def test_queries_with_expose_backend_connection(database_url):
                         "mysql",
                         "mysql+asyncmy",
                         "mysql+aiomysql",
-                        "postgresql+aiopg",
                     ]:
                         insert_query = (
                             "INSERT INTO notes (text, completed) VALUES (%s, %s)"
@@ -880,7 +870,6 @@ async def test_queries_with_expose_backend_connection(database_url):
                     if database.url.scheme in [
                         "mysql",
                         "mysql+aiomysql",
-                        "postgresql+aiopg",
                     ]:
                         cursor = await raw_connection.cursor()
                         await cursor.execute(insert_query, values)
@@ -901,11 +890,6 @@ async def test_queries_with_expose_backend_connection(database_url):
                     elif database.url.scheme == "mysql+asyncmy":
                         async with raw_connection.cursor() as cursor:
                             await cursor.executemany(insert_query, values)
-                    elif database.url.scheme == "postgresql+aiopg":
-                        cursor = await raw_connection.cursor()
-                        # No async support for `executemany`
-                        for value in values:
-                            await cursor.execute(insert_query, value)
                     else:
                         await raw_connection.executemany(insert_query, values)
 
@@ -918,7 +902,6 @@ async def test_queries_with_expose_backend_connection(database_url):
                     if database.url.scheme in [
                         "mysql",
                         "mysql+aiomysql",
-                        "postgresql+aiopg",
                     ]:
                         cursor = await raw_connection.cursor()
                         await cursor.execute(select_query)

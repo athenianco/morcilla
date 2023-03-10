@@ -53,7 +53,6 @@ setup(
         "mysql": ["aiomysql"],
         "mysql+asyncmy": ["asyncmy"],
         "sqlite": ["aiosqlite"],
-        "postgresql+aiopg": ["aiopg"],
     },
     classifiers=[
         "Development Status :: 3 - Alpha",
