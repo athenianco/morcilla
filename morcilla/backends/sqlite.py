@@ -97,6 +97,9 @@ class _RowSA20Compat(Row):
             return getattr(self, key)
         return super().__getitem__(key)
 
+    def keys(self):
+        return self._parent.keys
+
 
 class SQLiteConnection(ConnectionBackend):
     def __init__(
