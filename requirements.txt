@@ -1,4 +1,4 @@
-sqlalchemy==1.4.41
+sqlalchemy==1.4.46
 
 # Async database drivers
 asyncmy==0.2.7
