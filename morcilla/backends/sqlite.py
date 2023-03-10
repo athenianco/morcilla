@@ -97,7 +97,7 @@ class _RowSA20Compat(Row):
             return getattr(self, key)
         return super().__getitem__(key)
 
-    def keys(self):
+    def keys(self) -> typing.Iterable[str]:
         return self._parent.keys
 
 
