@@ -184,24 +184,24 @@ async def test_queries(database_url):
                 assert result["completed"]
 
                 # fetch_val()
-                query = sqlalchemy.sql.select([notes.c.text])
+                query = sqlalchemy.sql.select(notes.c.text)
                 result = await connection.fetch_val(query=query)
                 assert result == "example1"
 
                 # fetch_val() with no rows
-                query = sqlalchemy.sql.select([notes.c.text]).where(
+                query = sqlalchemy.sql.select(notes.c.text).where(
                     notes.c.text == "impossible"
                 )
                 result = await connection.fetch_val(query=query)
                 assert result is None
 
                 # fetch_val() with a different column
-                query = sqlalchemy.sql.select([notes.c.id, notes.c.text])
+                query = sqlalchemy.sql.select(notes.c.id, notes.c.text)
                 result = await connection.fetch_val(query=query, column=1)
                 assert result == "example1"
 
                 # row access (needed to maintain test coverage for Record.__getitem__ in postgres backend)
-                query = sqlalchemy.sql.select([notes.c.text])
+                query = sqlalchemy.sql.select(notes.c.text)
                 result = await connection.fetch_one(query=query)
                 assert result["text"] == "example1"
                 assert result[0] == "example1"
@@ -391,7 +391,7 @@ async def test_results_support_column_reference(database_url):
                 await connection.execute(query, values)
 
                 # fetch_all()
-                query = sqlalchemy.select([articles, custom_date])
+                query = sqlalchemy.select(articles, custom_date)
                 results = await connection.fetch_all(query=query)
                 assert len(results) == 1
                 if database.url.dialect != "postgresql" or isinstance(
