@@ -397,10 +397,15 @@ async def test_results_support_column_reference(database_url):
                 if database.url.dialect != "postgresql" or isinstance(
                     results[0][custom_date.c.published.name + "_1"], datetime.date
                 ):
-                    assert results[0][articles.c.title] == "Hello, world Article"
-                    assert results[0][articles.c.published] == now
-                    assert results[0][custom_date.c.title] == "Hello, world Custom"
-                    assert results[0][custom_date.c.published] == today
+                    assert (
+                        results[0]._mapping[articles.c.title] == "Hello, world Article"
+                    )
+                    assert results[0]._mapping[articles.c.published] == now
+                    assert (
+                        results[0]._mapping[custom_date.c.title]
+                        == "Hello, world Custom"
+                    )
+                    assert results[0]._mapping[custom_date.c.published] == today
                 else:
                     assert results[0][articles.c.title.name] == "Hello, world Article"
                     assert results[0][articles.c.published.name] == now
@@ -530,17 +535,15 @@ async def test_transaction_commit_serializable(database_url):
 
     def insert_independently():
         engine = sqlalchemy.create_engine(str(database_url))
-        conn = engine.connect()
-
-        query = notes.insert().values(text="example1", completed=True)
-        conn.execute(query)
+        with engine.begin() as conn:
+            query = notes.insert().values(text="example1", completed=True)
+            conn.execute(query)
 
     def delete_independently():
         engine = sqlalchemy.create_engine(str(database_url))
-        conn = engine.connect()
-
-        query = notes.delete()
-        conn.execute(query)
+        with engine.begin() as conn:
+            query = notes.delete()
+            conn.execute(query)
 
     async with Database(database_url) as database:
         async with database.connection() as connection:
