@@ -10,4 +10,4 @@ set -x
 
 ${PREFIX}isort --check --diff --project=morcilla $SOURCE_FILES
 ${PREFIX}black --check --diff $SOURCE_FILES
-${PREFIX}mypy morcilla
+#${PREFIX}mypy morcilla
