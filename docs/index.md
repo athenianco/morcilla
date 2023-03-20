@@ -42,7 +42,7 @@ Default driver support is provided using one of [asyncpg][asyncpg], [aiomysql][a
 You can also use other database drivers supported by `databases`:
 
 ```shell
-$ pip install databases[mysql+asyncmy]
+$ pip install databases[postgresql+asyncpg]
 ```
 
 Note that if you are using any synchronous SQLAlchemy functions such as `engine.create_all()` or [alembic][alembic] migrations then you still have to install a synchronous DB driver: [psycopg2][psycopg2] for PostgreSQL and [pymysql][pymysql] for MySQL.

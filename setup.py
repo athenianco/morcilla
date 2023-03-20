@@ -51,7 +51,6 @@ setup(
     extras_require={
         "postgresql": ["asyncpg-rkt"],
         "mysql": ["aiomysql"],
-        "mysql+asyncmy": ["asyncmy"],
         "sqlite": ["aiosqlite"],
     },
     classifiers=[

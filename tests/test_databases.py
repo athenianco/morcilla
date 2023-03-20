@@ -26,8 +26,6 @@ def mysql_versions(wrapped_func):
         url = DatabaseURL(kwargs["database_url"])
         if url.scheme in ["mysql", "mysql+aiomysql"] and sys.version_info >= (3, 10):
             pytest.skip("aiomysql supports python 3.9 and lower")
-        if url.scheme == "mysql+asyncmy" and sys.version_info < (3, 7):
-            pytest.skip("asyncmy supports python 3.7 and higher")
         return wrapped_func(*args, **kwargs)
 
     return check
@@ -100,7 +98,7 @@ def create_test_database():
     # Create test databases with tables creation
     for url in DATABASE_URLS:
         database_url = DatabaseURL(url)
-        if database_url.scheme in ["mysql", "mysql+aiomysql", "mysql+asyncmy"]:
+        if database_url.scheme in ["mysql", "mysql+aiomysql"]:
             url = str(database_url.replace(driver="pymysql"))
         elif database_url.scheme in [
             "sqlite+aiosqlite",
@@ -116,7 +114,7 @@ def create_test_database():
     # Drop test databases
     for url in DATABASE_URLS:
         database_url = DatabaseURL(url)
-        if database_url.scheme in ["mysql", "mysql+aiomysql", "mysql+asyncmy"]:
+        if database_url.scheme in ["mysql", "mysql+aiomysql"]:
             url = str(database_url.replace(driver="pymysql"))
         elif database_url.scheme in [
             "sqlite+aiosqlite",
@@ -853,7 +851,6 @@ async def test_queries_with_expose_backend_connection(database_url):
                     # Insert query
                     if database.url.scheme in [
                         "mysql",
-                        "mysql+asyncmy",
                         "mysql+aiomysql",
                     ]:
                         insert_query = (
@@ -873,9 +870,6 @@ async def test_queries_with_expose_backend_connection(database_url):
                     ]:
                         cursor = await raw_connection.cursor()
                         await cursor.execute(insert_query, values)
-                    elif database.url.scheme == "mysql+asyncmy":
-                        async with raw_connection.cursor() as cursor:
-                            await cursor.execute(insert_query, values)
                     elif database.url.scheme in ["postgresql", "postgresql+asyncpg"]:
                         await raw_connection.execute(insert_query, *values)
                     elif database.url.scheme in ["sqlite", "sqlite+aiosqlite"]:
@@ -887,9 +881,6 @@ async def test_queries_with_expose_backend_connection(database_url):
                     if database.url.scheme in ["mysql", "mysql+aiomysql"]:
                         cursor = await raw_connection.cursor()
                         await cursor.executemany(insert_query, values)
-                    elif database.url.scheme == "mysql+asyncmy":
-                        async with raw_connection.cursor() as cursor:
-                            await cursor.executemany(insert_query, values)
                     else:
                         await raw_connection.executemany(insert_query, values)
 
@@ -906,10 +897,6 @@ async def test_queries_with_expose_backend_connection(database_url):
                         cursor = await raw_connection.cursor()
                         await cursor.execute(select_query)
                         results = await cursor.fetchall()
-                    elif database.url.scheme == "mysql+asyncmy":
-                        async with raw_connection.cursor() as cursor:
-                            await cursor.execute(select_query)
-                            results = await cursor.fetchall()
                     elif database.url.scheme in ["postgresql", "postgresql+asyncpg"]:
                         results = await raw_connection.fetch(select_query)
                     elif database.url.scheme in ["sqlite", "sqlite+aiosqlite"]:
@@ -927,10 +914,6 @@ async def test_queries_with_expose_backend_connection(database_url):
                     # fetch_one()
                     if database.url.scheme in ["postgresql", "postgresql+asyncpg"]:
                         result = await raw_connection.fetchrow(select_query)
-                    elif database.url.scheme == "mysql+asyncmy":
-                        async with raw_connection.cursor() as cursor:
-                            await cursor.execute(select_query)
-                            result = await cursor.fetchone()
                     else:
                         cursor = await raw_connection.cursor()
                         await cursor.execute(select_query)

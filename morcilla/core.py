@@ -43,7 +43,6 @@ class Database:
     SUPPORTED_BACKENDS = {
         "postgresql": "morcilla.backends.asyncpg:PostgresBackend",
         "mysql": "morcilla.backends.mysql:MySQLBackend",
-        "mysql+asyncmy": "morcilla.backends.asyncmy:AsyncMyBackend",
         "sqlite": "morcilla.backends.sqlite:SQLiteBackend",
     }
 

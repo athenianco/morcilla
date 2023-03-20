@@ -35,13 +35,8 @@ $ pip install morcilla[mysql]
 $ pip install morcilla[sqlite]
 ```
 
-Default driver support is provided using one of [asyncpg][asyncpg], [aiomysql][aiomysql], or [aiosqlite][aiosqlite].
+Default driver support is provided using one of [asyncpg][asyncpg] or [aiosqlite][aiosqlite].
 
-You can also use other database drivers supported by `morcilla`:
-
-```shell
-$ pip install morcilla[mysql+asyncmy]
-```
 
 Note that if you are using any synchronous SQLAlchemy functions such as `engine.create_all()` or [alembic][alembic] migrations then you still have to install a synchronous DB driver: [psycopg2][psycopg2] for PostgreSQL and [pymysql][pymysql] for MySQL.
 

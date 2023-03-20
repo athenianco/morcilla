@@ -1,7 +1,6 @@
 sqlalchemy==1.4.41
 
 # Async database drivers
-asyncmy==0.2.7
 aiomysql==0.1.1
 aiosqlite==0.17.0
 asyncpg-rkt==0.27.0
