@@ -80,13 +80,3 @@ rather than using the async drivers that `databases` provides support for.
 
 This will also be the case if you're using SQLAlchemy's standard tooling, such
 as using `metadata.create_all(engine)` to setup the database tables.
-
-**Note for MySQL**:
-
-For MySQL you'll probably need to explicitly specify the `pymysql` dialect when
-using Alembic since the default MySQL dialect does not support Python 3.
-
-If you're using the `databases.DatabaseURL` datatype, you can obtain this using
-`DATABASE_URL.replace(dialect="pymysql")`
-
-[alembic]: https://alembic.sqlalchemy.org/en/latest/

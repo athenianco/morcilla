@@ -50,7 +50,6 @@ setup(
     install_requires=["sqlalchemy>=1.4.42,<1.5"],
     extras_require={
         "postgresql": ["asyncpg-rkt"],
-        "mysql": ["aiomysql"],
         "sqlite": ["aiosqlite"],
     },
     classifiers=[

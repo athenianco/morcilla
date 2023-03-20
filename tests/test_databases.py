@@ -16,21 +16,6 @@ assert "TEST_DATABASE_URLS" in os.environ, "TEST_DATABASE_URLS is not set."
 DATABASE_URLS = [url.strip() for url in os.environ["TEST_DATABASE_URLS"].split(",")]
 
 
-def mysql_versions(wrapped_func):
-    """
-    Decorator used to handle multiple versions of Python for mysql drivers
-    """
-
-    @functools.wraps(wrapped_func)
-    def check(*args, **kwargs):
-        url = DatabaseURL(kwargs["database_url"])
-        if url.scheme in ["mysql", "mysql+aiomysql"] and sys.version_info >= (3, 10):
-            pytest.skip("aiomysql supports python 3.9 and lower")
-        return wrapped_func(*args, **kwargs)
-
-    return check
-
-
 class AsyncMock(MagicMock):
     async def __call__(self, *args, **kwargs):
         return super(AsyncMock, self).__call__(*args, **kwargs)
@@ -98,13 +83,7 @@ def create_test_database():
     # Create test databases with tables creation
     for url in DATABASE_URLS:
         database_url = DatabaseURL(url)
-        if database_url.scheme in ["mysql", "mysql+aiomysql"]:
-            url = str(database_url.replace(driver="pymysql"))
-        elif database_url.scheme in [
-            "sqlite+aiosqlite",
-            "postgresql+asyncpg",
-        ]:
-            url = str(database_url.replace(driver=None))
+        url = str(database_url.replace(driver=None))
         engine = sqlalchemy.create_engine(url)
         metadata.create_all(engine)
 
@@ -114,13 +93,7 @@ def create_test_database():
     # Drop test databases
     for url in DATABASE_URLS:
         database_url = DatabaseURL(url)
-        if database_url.scheme in ["mysql", "mysql+aiomysql"]:
-            url = str(database_url.replace(driver="pymysql"))
-        elif database_url.scheme in [
-            "sqlite+aiosqlite",
-            "postgresql+asyncpg",
-        ]:
-            url = str(database_url.replace(driver=None))
+        url = str(database_url.replace(driver=None))
         engine = sqlalchemy.create_engine(url)
         metadata.drop_all(engine)
 
@@ -140,7 +113,6 @@ def async_adapter(wrapped_func):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_queries(database_url):
     """
@@ -219,7 +191,6 @@ async def test_queries(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_queries_raw(database_url):
     """
@@ -288,7 +259,6 @@ async def test_queries_raw(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_ddl_queries(database_url):
     """
@@ -308,7 +278,6 @@ async def test_ddl_queries(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_queries_after_error(database_url):
     """
@@ -336,7 +305,6 @@ async def test_queries_after_error(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_results_support_mapping_interface(database_url):
     """
@@ -366,7 +334,6 @@ async def test_results_support_mapping_interface(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_results_support_column_reference(database_url):
     """
@@ -415,7 +382,6 @@ async def test_results_support_column_reference(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_result_values_allow_duplicate_names(database_url):
     """
@@ -435,7 +401,6 @@ async def test_result_values_allow_duplicate_names(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_fetch_one_returning_no_results(database_url):
     """
@@ -451,7 +416,6 @@ async def test_fetch_one_returning_no_results(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_execute_return_val(database_url):
     """
@@ -472,7 +436,6 @@ async def test_execute_return_val(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_rollback_isolation(database_url):
     """
@@ -493,7 +456,6 @@ async def test_rollback_isolation(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_transaction_commit(database_url):
     """
@@ -511,7 +473,6 @@ async def test_transaction_commit(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_transaction_commit_serializable(database_url):
     """
@@ -557,7 +518,6 @@ async def test_transaction_commit_serializable(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_transaction_rollback(database_url):
     """
@@ -580,7 +540,6 @@ async def test_transaction_rollback(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_transaction_commit_low_level(database_url):
     """
@@ -605,7 +564,6 @@ async def test_transaction_commit_low_level(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_transaction_rollback_low_level(database_url):
     """
@@ -630,7 +588,6 @@ async def test_transaction_rollback_low_level(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_datetime_field(database_url):
     """
@@ -656,7 +613,6 @@ async def test_datetime_field(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_decimal_field(database_url):
     """
@@ -685,7 +641,6 @@ async def test_decimal_field(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_json_field(database_url):
     """
@@ -713,7 +668,6 @@ async def test_json_field(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_custom_field(database_url):
     """
@@ -750,7 +704,6 @@ async def test_custom_field(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_connections_isolation(database_url):
     """
@@ -773,7 +726,6 @@ async def test_connections_isolation(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_commit_on_root_transaction(database_url):
     """
@@ -799,7 +751,6 @@ async def test_commit_on_root_transaction(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_connect_and_disconnect(database_url):
     """
@@ -823,7 +774,6 @@ async def test_connect_and_disconnect(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_connection_context(database_url):
     """
@@ -836,7 +786,6 @@ async def test_connection_context(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_queries_with_expose_backend_connection(database_url):
     """
@@ -849,28 +798,12 @@ async def test_queries_with_expose_backend_connection(database_url):
                 # Get the raw connection
                 async with connection.raw_connection() as raw_connection:
                     # Insert query
-                    if database.url.scheme in [
-                        "mysql",
-                        "mysql+aiomysql",
-                    ]:
-                        insert_query = (
-                            "INSERT INTO notes (text, completed) VALUES (%s, %s)"
-                        )
-                    else:
-                        insert_query = (
-                            "INSERT INTO notes (text, completed) VALUES ($1, $2)"
-                        )
+                    insert_query = "INSERT INTO notes (text, completed) VALUES ($1, $2)"
 
                     # execute()
                     values = ("example1", True)
 
-                    if database.url.scheme in [
-                        "mysql",
-                        "mysql+aiomysql",
-                    ]:
-                        cursor = await raw_connection.cursor()
-                        await cursor.execute(insert_query, values)
-                    elif database.url.scheme in ["postgresql", "postgresql+asyncpg"]:
+                    if database.url.scheme in ["postgresql", "postgresql+asyncpg"]:
                         await raw_connection.execute(insert_query, *values)
                     elif database.url.scheme in ["sqlite", "sqlite+aiosqlite"]:
                         await raw_connection.execute(insert_query, values)
@@ -878,11 +811,7 @@ async def test_queries_with_expose_backend_connection(database_url):
                     # execute_many()
                     values = [("example2", False), ("example3", True)]
 
-                    if database.url.scheme in ["mysql", "mysql+aiomysql"]:
-                        cursor = await raw_connection.cursor()
-                        await cursor.executemany(insert_query, values)
-                    else:
-                        await raw_connection.executemany(insert_query, values)
+                    await raw_connection.executemany(insert_query, values)
 
                     # Select query
                     select_query = (
@@ -890,14 +819,7 @@ async def test_queries_with_expose_backend_connection(database_url):
                     )
 
                     # fetch_all()
-                    if database.url.scheme in [
-                        "mysql",
-                        "mysql+aiomysql",
-                    ]:
-                        cursor = await raw_connection.cursor()
-                        await cursor.execute(select_query)
-                        results = await cursor.fetchall()
-                    elif database.url.scheme in ["postgresql", "postgresql+asyncpg"]:
+                    if database.url.scheme in ["postgresql", "postgresql+asyncpg"]:
                         results = await raw_connection.fetch(select_query)
                     elif database.url.scheme in ["sqlite", "sqlite+aiosqlite"]:
                         results = await raw_connection.execute_fetchall(select_query)
@@ -925,7 +847,6 @@ async def test_queries_with_expose_backend_connection(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_database_url_interface(database_url):
     """
@@ -963,8 +884,6 @@ async def test_iterate_outside_transaction_with_values(database_url):
     """
 
     database_url = DatabaseURL(database_url)
-    if database_url.dialect == "mysql":
-        pytest.skip("MySQL does not support `FROM (VALUES ...)` (F641)")
 
     async with Database(database_url) as database:
         query = "SELECT * FROM (VALUES (1), (2), (3), (4), (5)) as t"
@@ -977,7 +896,6 @@ async def test_iterate_outside_transaction_with_values(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_iterate_outside_transaction_with_temp_table(database_url):
     """
@@ -1007,7 +925,6 @@ async def test_iterate_outside_transaction_with_temp_table(database_url):
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
 @pytest.mark.parametrize("select_query", [notes.select(), "SELECT * FROM notes"])
-@mysql_versions
 @async_adapter
 async def test_column_names(database_url, select_query):
     """
@@ -1035,7 +952,6 @@ async def test_column_names(database_url, select_query):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_parallel_transactions(database_url):
     """
@@ -1055,7 +971,6 @@ async def test_parallel_transactions(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_postcompile_queries(database_url):
     """
@@ -1077,7 +992,6 @@ def _is_asyncpg(database: Database) -> bool:
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_result_named_access(database_url):
     async with Database(database_url) as database:
@@ -1097,7 +1011,6 @@ async def test_result_named_access(database_url):
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
-@mysql_versions
 @async_adapter
 async def test_mapping_property_interface(database_url):
     """
