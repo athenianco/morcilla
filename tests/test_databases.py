@@ -3,7 +3,6 @@ import datetime
 import decimal
 import functools
 import os
-import re
 import sys
 from unittest.mock import MagicMock, patch
 
