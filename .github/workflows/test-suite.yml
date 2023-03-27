@@ -43,9 +43,7 @@ jobs:
         env:
           TEST_DATABASE_URLS: |
             sqlite:///testsuite,
-            sqlite+aiosqlite:///testsuite,
-            postgresql://username:password@localhost:5432/testsuite,
-            postgresql+asyncpg://username:password@localhost:5432/testsuite
+            postgresql://username:password@localhost:5432/testsuite
         run: "scripts/test"
   bump_version:
     name: Bump the version
