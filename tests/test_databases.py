@@ -103,7 +103,6 @@ def create_test_database():
         if database_url.scheme in ["mysql", "mysql+aiomysql", "mysql+asyncmy"]:
             url = str(database_url.replace(driver="pymysql"))
         elif database_url.scheme in [
-            "postgresql+aiopg",
             "sqlite+aiosqlite",
             "postgresql+asyncpg",
         ]:
@@ -120,7 +119,6 @@ def create_test_database():
         if database_url.scheme in ["mysql", "mysql+aiomysql", "mysql+asyncmy"]:
             url = str(database_url.replace(driver="pymysql"))
         elif database_url.scheme in [
-            "postgresql+aiopg",
             "sqlite+aiosqlite",
             "postgresql+asyncpg",
         ]:
@@ -186,24 +184,24 @@ async def test_queries(database_url):
                 assert result["completed"]
 
                 # fetch_val()
-                query = sqlalchemy.sql.select([notes.c.text])
+                query = sqlalchemy.sql.select(notes.c.text)
                 result = await connection.fetch_val(query=query)
                 assert result == "example1"
 
                 # fetch_val() with no rows
-                query = sqlalchemy.sql.select([notes.c.text]).where(
+                query = sqlalchemy.sql.select(notes.c.text).where(
                     notes.c.text == "impossible"
                 )
                 result = await connection.fetch_val(query=query)
                 assert result is None
 
                 # fetch_val() with a different column
-                query = sqlalchemy.sql.select([notes.c.id, notes.c.text])
+                query = sqlalchemy.sql.select(notes.c.id, notes.c.text)
                 result = await connection.fetch_val(query=query, column=1)
                 assert result == "example1"
 
                 # row access (needed to maintain test coverage for Record.__getitem__ in postgres backend)
-                query = sqlalchemy.sql.select([notes.c.text])
+                query = sqlalchemy.sql.select(notes.c.text)
                 result = await connection.fetch_one(query=query)
                 assert result["text"] == "example1"
                 assert result[0] == "example1"
@@ -393,16 +391,21 @@ async def test_results_support_column_reference(database_url):
                 await connection.execute(query, values)
 
                 # fetch_all()
-                query = sqlalchemy.select([articles, custom_date])
+                query = sqlalchemy.select(articles, custom_date)
                 results = await connection.fetch_all(query=query)
                 assert len(results) == 1
                 if database.url.dialect != "postgresql" or isinstance(
                     results[0][custom_date.c.published.name + "_1"], datetime.date
                 ):
-                    assert results[0][articles.c.title] == "Hello, world Article"
-                    assert results[0][articles.c.published] == now
-                    assert results[0][custom_date.c.title] == "Hello, world Custom"
-                    assert results[0][custom_date.c.published] == today
+                    assert (
+                        results[0]._mapping[articles.c.title] == "Hello, world Article"
+                    )
+                    assert results[0]._mapping[articles.c.published] == now
+                    assert (
+                        results[0]._mapping[custom_date.c.title]
+                        == "Hello, world Custom"
+                    )
+                    assert results[0]._mapping[custom_date.c.published] == today
                 else:
                     assert results[0][articles.c.title.name] == "Hello, world Article"
                     assert results[0][articles.c.published.name] == now
@@ -469,17 +472,10 @@ async def test_execute_return_val(database_url):
                 pk = await connection.execute(query, values)
                 assert isinstance(pk, int)
 
-                # Apparently for `aiopg` it's OID that will always 0 in this case
-                # As it's only one action within this cursor life cycle
-                # It's recommended to use the `RETURNING` clause
-                # For obtaining the record id
-                if database.url.scheme == "postgresql+aiopg":
-                    assert pk == 0
-                else:
-                    query = notes.select().where(notes.c.id == pk)
-                    result = await connection.fetch_one(query)
-                    assert result["text"] == "example1"
-                    assert result["completed"]
+                query = notes.select().where(notes.c.id == pk)
+                result = await connection.fetch_one(query)
+                assert result["text"] == "example1"
+                assert result["completed"]
 
 
 @pytest.mark.parametrize("database_url", DATABASE_URLS)
@@ -539,17 +535,15 @@ async def test_transaction_commit_serializable(database_url):
 
     def insert_independently():
         engine = sqlalchemy.create_engine(str(database_url))
-        conn = engine.connect()
-
-        query = notes.insert().values(text="example1", completed=True)
-        conn.execute(query)
+        with engine.begin() as conn:
+            query = notes.insert().values(text="example1", completed=True)
+            conn.execute(query)
 
     def delete_independently():
         engine = sqlalchemy.create_engine(str(database_url))
-        conn = engine.connect()
-
-        query = notes.delete()
-        conn.execute(query)
+        with engine.begin() as conn:
+            query = notes.delete()
+            conn.execute(query)
 
     async with Database(database_url) as database:
         async with database.connection() as connection:
@@ -864,7 +858,6 @@ async def test_queries_with_expose_backend_connection(database_url):
                         "mysql",
                         "mysql+asyncmy",
                         "mysql+aiomysql",
-                        "postgresql+aiopg",
                     ]:
                         insert_query = (
                             "INSERT INTO notes (text, completed) VALUES (%s, %s)"
@@ -880,7 +873,6 @@ async def test_queries_with_expose_backend_connection(database_url):
                     if database.url.scheme in [
                         "mysql",
                         "mysql+aiomysql",
-                        "postgresql+aiopg",
                     ]:
                         cursor = await raw_connection.cursor()
                         await cursor.execute(insert_query, values)
@@ -901,11 +893,6 @@ async def test_queries_with_expose_backend_connection(database_url):
                     elif database.url.scheme == "mysql+asyncmy":
                         async with raw_connection.cursor() as cursor:
                             await cursor.executemany(insert_query, values)
-                    elif database.url.scheme == "postgresql+aiopg":
-                        cursor = await raw_connection.cursor()
-                        # No async support for `executemany`
-                        for value in values:
-                            await cursor.execute(insert_query, value)
                     else:
                         await raw_connection.executemany(insert_query, values)
 
@@ -918,7 +905,6 @@ async def test_queries_with_expose_backend_connection(database_url):
                     if database.url.scheme in [
                         "mysql",
                         "mysql+aiomysql",
-                        "postgresql+aiopg",
                     ]:
                         cursor = await raw_connection.cursor()
                         await cursor.execute(select_query)

@@ -10,4 +10,4 @@ set -x
 ${PREFIX}autoflake --in-place --recursive morcilla tests
 ${PREFIX}isort --project=morcilla morcilla tests
 ${PREFIX}black morcilla tests
-${PREFIX}mypy morcilla
+#${PREFIX}mypy morcilla

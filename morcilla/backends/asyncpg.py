@@ -7,7 +7,8 @@ import typing
 
 import asyncpg
 from sqlalchemy import text
-from sqlalchemy.dialects.postgresql import hstore, pypostgresql
+from sqlalchemy.dialects.postgresql import psycopg2
+from sqlalchemy.dialects.postgresql.hstore import hstore
 from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.sql import ClauseElement
 from sqlalchemy.sql.ddl import DDLElement
@@ -88,16 +89,10 @@ class PostgresBackend(DatabaseBackend):
         self._pool = None
 
     def _get_dialect(self) -> Dialect:
-        dialect = pypostgresql.dialect(paramstyle="pyformat")
-
+        dialect = psycopg2.dialect()
         dialect.implicit_returning = True
-        dialect.supports_native_enum = True
-        dialect.supports_smallserial = True  # 9.2+
         dialect._backslash_escapes = False
-        dialect.supports_sane_multi_rowcount = True  # psycopg 2.0.9+
-        dialect._has_native_hstore = True
         dialect.supports_native_decimal = True
-
         return dialect
 
     def _get_connection_kwargs(self) -> dict:
