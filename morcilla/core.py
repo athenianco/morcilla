@@ -42,9 +42,6 @@ logger = logging.getLogger("morcilla")
 class Database:
     SUPPORTED_BACKENDS = {
         "postgresql": "morcilla.backends.asyncpg:PostgresBackend",
-        "postgresql+aiopg": "morcilla.backends.aiopg:AiopgBackend",
-        "mysql": "morcilla.backends.mysql:MySQLBackend",
-        "mysql+asyncmy": "morcilla.backends.asyncmy:AsyncMyBackend",
         "sqlite": "morcilla.backends.sqlite:SQLiteBackend",
     }
 

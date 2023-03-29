@@ -13,7 +13,7 @@ Morcilla gives you simple and high-performant asyncio support for a range of dat
 The project is a hard fork of [encode/databases](https://github.com/encode/databases).
 
 It allows you to make queries using the powerful [SQLAlchemy Core][sqlalchemy-core]
-expression language, and provides support for PostgreSQL, MySQL, and SQLite.
+expression language, and provides support for PostgreSQL and SQLite.
 
 Morcilla is suitable for integrating against any async Web framework.
 
@@ -31,20 +31,13 @@ You can install the required database drivers with:
 
 ```shell
 $ pip install morcilla[postgresql]
-$ pip install morcilla[mysql]
 $ pip install morcilla[sqlite]
 ```
 
-Default driver support is provided using one of [asyncpg][asyncpg], [aiomysql][aiomysql], or [aiosqlite][aiosqlite].
+Default driver support is provided using one of [asyncpg][asyncpg] or [aiosqlite][aiosqlite].
 
-You can also use other database drivers supported by `morcilla`:
 
-```shel
-$ pip install morcilla[postgresql+aiopg]
-$ pip install morcilla[mysql+asyncmy]
-```
-
-Note that if you are using any synchronous SQLAlchemy functions such as `engine.create_all()` or [alembic][alembic] migrations then you still have to install a synchronous DB driver: [psycopg2][psycopg2] for PostgreSQL and [pymysql][pymysql] for MySQL.
+Note that if you are using any synchronous SQLAlchemy functions such as `engine.create_all()` or [alembic][alembic] migrations then you still have to install a synchronous DB driver: [psycopg2][psycopg2] for PostgreSQL.
 
 ---
 
@@ -111,7 +104,5 @@ Morcilla means blood sausage in Spanish. So the name reflects the ~bloody mess~ 
 [sqlalchemy-core-tutorial]: https://docs.sqlalchemy.org/en/latest/core/tutorial.html
 [alembic]: https://alembic.sqlalchemy.org/en/latest/
 [psycopg2]: https://www.psycopg.org/
-[pymysql]: https://github.com/PyMySQL/PyMySQL
 [asyncpg]: https://github.com/MagicStack/asyncpg
-[aiomysql]: https://github.com/aio-libs/aiomysql
 [aiosqlite]: https://github.com/jreese/aiosqlite
